@@ -24,6 +24,8 @@ async function invalidateAllCache() {
       redis.del(CACHE_KEYS.MATCHES),
       redis.del(CACHE_KEYS.TOURNAMENT),
     ]);
+    // Also trigger Next.js revalidation for all dynamic pages
+    revalidatePath('/', 'layout');
   } catch (error) {
     console.error("❌ [Redis] Cache Invalidation Error:", error);
   }
@@ -199,9 +201,21 @@ export async function updatePlayerStatsAction(id: string, rank: number | null, s
 
 export async function deletePlayerAction(id: string) {
   try {
+    // 1. Delete all matches where this player is either white or black
+    await prisma.match.deleteMany({
+      where: {
+        OR: [
+          { whitePlayerId: id },
+          { blackPlayerId: id }
+        ]
+      }
+    });
+
+    // 2. Delete the player
     await prisma.player.delete({
       where: { id }
     });
+
     await invalidateAllCache();
     revalidatePath('/admin');
     revalidatePath('/participants');

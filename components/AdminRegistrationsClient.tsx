@@ -119,8 +119,9 @@ export default function AdminRegistrationsClient({ initialPlayers }: AdminRegist
                                 <button onClick={() => handleViewReceipt(p.paymentReceipt)} className="text-[10px] text-slate-400 hover:text-white underline">View</button>
                             </td>
                             <td className="px-6 py-4 text-right space-x-2 flex justify-end">
-                                <button onClick={() => handleStatusChange(p, RegistrationStatus.APPROVED)} className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20"><Check className="h-4 w-4"/></button>
-                                <button onClick={() => handleStatusChange(p, RegistrationStatus.REJECTED)} className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20"><X className="h-4 w-4"/></button>
+                                <button onClick={() => handleStatusChange(p, RegistrationStatus.APPROVED)} className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20" title="Approve"><Check className="h-4 w-4"/></button>
+                                <button onClick={() => handleStatusChange(p, RegistrationStatus.REJECTED)} className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20" title="Reject"><X className="h-4 w-4"/></button>
+                                <button onClick={() => handleDelete(p.id)} className="p-2 bg-slate-800 text-slate-500 rounded-lg hover:bg-red-500/20 hover:text-red-500 transition-colors" title="Delete Permanent"><Trash2 className="h-4 w-4"/></button>
                             </td>
                         </tr>
                     ))}
