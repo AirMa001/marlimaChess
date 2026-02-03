@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id              String   @id @default(uuid())
+  fullName        String
+  department      String
+  phoneNumber     String
+  chessUsername   String
+  platform        String
+  rating          Int
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  paymentReference String?
+  paymentReceipt  String?  @db.Text
+  registeredAt    DateTime @default(now())
+  
+  // Tournament Stats
+  rank            Int?     // Final position (1, 2, 3...)
+  score           Float    @default(0.0) // Tournament points
+  
+  // Relations
+  matchesAsWhite  Match[]  @relation("WhitePlayer")
+  matchesAsBlack  Match[]  @relation("BlackPlayer")
+
+  @@index([status])
+  @@index([score, rating])
+}
+
+model Match {
+  id              String   @id @default(uuid())
+  round           Int      @default(1)
+  table           Int?
+  
+  whitePlayerId   String
+  whitePlayer     Player   @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+  
+  blackPlayerId   String
+  blackPlayer     Player   @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
+  
+  result          String?  // "1-0", "0-1", "1/2-1/2", null (pending)
+  createdAt       DateTime @default(now())
+
+  @@index([round])
+}
+
+model Tournament {
+  id           Int      @id @default(1)
+  currentRound Int      @default(1)
+  status       String   @default("IN_PROGRESS") // "IN_PROGRESS", "FINISHED"
+  updatedAt    DateTime @updatedAt
+}

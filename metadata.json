@@ -1,0 +1,5 @@
+{
+  "name": "Checkmate Events",
+  "description": "A premium chess tournament management platform featuring player registration, rating verification via Chess.com/Lichess, and AI-powered tournament analysis.",
+  "requestFramePermissions": []
+}
