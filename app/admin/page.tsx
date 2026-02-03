@@ -2,6 +2,8 @@ import React from 'react';
 import { getPlayersAction } from '@/app/actions';
 import AdminRegistrationsClient from '@/components/AdminRegistrationsClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminRegistrations() {
   const players = await getPlayersAction();
 

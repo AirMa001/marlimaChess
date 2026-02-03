@@ -2,6 +2,8 @@ import React from 'react';
 import { getApprovedPlayersAction } from '@/app/actions';
 import AdminStandingsClient from '@/components/AdminStandingsClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminStandings() {
   const players = await getApprovedPlayersAction();
 

@@ -87,7 +87,7 @@ export default function AdminMatchesClient({ initialMatches, initialRound, initi
                 toast.success("Tournament reset");
             }
         },
-        cancel: { label: "Cancel" }
+        cancel: { label: "Cancel", onClick: () => {} }
     });
   };
 
