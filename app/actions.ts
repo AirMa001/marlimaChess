@@ -426,9 +426,9 @@ export async function getTournamentAction() {
     }
 
     console.log("🗄️ [DB] Cache miss. Fetching tournament state...");
-    let tournament = await prisma.tournament.findUnique({ where: { id: 1 } });
+    let tournament = await (prisma.tournament as any).findUnique({ where: { id: 1 } });
     if (!tournament) {
-      tournament = await prisma.tournament.create({ data: { id: 1, currentRound: 1, totalRounds: 5 } });
+      tournament = await (prisma.tournament as any).create({ data: { id: 1, currentRound: 1, totalRounds: 5 } });
     }
 
     // Store in Redis
@@ -446,7 +446,7 @@ export async function getTournamentAction() {
 
 export async function updateTournamentSettingsAction(totalRounds: number) {
   try {
-    const updated = await prisma.tournament.upsert({
+    const updated = await (prisma.tournament as any).upsert({
       where: { id: 1 },
       update: { totalRounds },
       create: { id: 1, currentRound: 1, totalRounds }
@@ -481,7 +481,7 @@ export async function advanceRoundAction() {
     // 2. Check if we have reached the tournament limit
     if (nextRound > (t.totalRounds || 5)) {
       console.log(`🏁 [Tournament] Round limit (${t.totalRounds}) reached. Finalizing tournament.`);
-      await prisma.tournament.update({
+      await (prisma.tournament as any).update({
         where: { id: 1 },
         data: { status: "FINISHED" }
       });
@@ -503,7 +503,7 @@ export async function advanceRoundAction() {
     await generateSwissPairingsAction(nextRound);
 
     // 5. Update the tournament state to the next round
-    const updated = await prisma.tournament.update({
+    const updated = await (prisma.tournament as any).update({
       where: { id: 1 },
       data: { currentRound: nextRound }
     });
@@ -525,7 +525,7 @@ export async function finishTournamentAction() {
   try {
     const t = await getTournamentAction();
     await calculateScoresForRound(t.currentRound);
-    await prisma.tournament.update({
+    await (prisma.tournament as any).update({
       where: { id: 1 },
       data: { status: "FINISHED" }
     });
@@ -543,7 +543,7 @@ export async function resetTournamentAction() {
         await prisma.match.deleteMany({}); 
         
         // Force round back to 1
-        await prisma.tournament.upsert({
+        await (prisma.tournament as any).upsert({
             where: { id: 1 },
             update: { currentRound: 1, status: "IN_PROGRESS" },
             create: { id: 1, currentRound: 1, status: "IN_PROGRESS" }
@@ -791,7 +791,7 @@ export async function generateSwissPairingsAction(round: number) {
         console.log("✅ Matches created in DB.");
 
         // IMPORTANT: Update tournament state to this round
-        await prisma.tournament.upsert({
+        await (prisma.tournament as any).upsert({
           where: { id: 1 },
           update: { currentRound: round, status: 'IN_PROGRESS' },
           create: { id: 1, currentRound: round, status: 'IN_PROGRESS' }
@@ -869,7 +869,7 @@ export async function generateRoundRobinAction() {
     await prisma.match.createMany({ data: matchesToCreate });
 
     // Update tournament settings to match the generated schedule
-    await prisma.tournament.upsert({
+    await (prisma.tournament as any).upsert({
       where: { id: 1 },
       update: { currentRound: 1, totalRounds: roundsToGenerate, status: 'IN_PROGRESS' },
       create: { id: 1, currentRound: 1, totalRounds: roundsToGenerate, status: 'IN_PROGRESS' }
