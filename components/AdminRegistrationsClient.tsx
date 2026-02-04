@@ -1,21 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import { updatePlayerStatusAction, deletePlayerAction, savePlayerAction } from '@/app/actions';
+import { updatePlayerStatusAction, deletePlayerAction, savePlayerAction, getPaymentReceiptAction } from '@/app/actions';
 import { Player, RegistrationStatus, ChessPlatform } from '@/types';
 import { Button } from '@/components/Button';
-import { Check, X, Trash2, UserPlus } from 'lucide-react';
+import { Check, X, Trash2, UserPlus, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendApprovalSMS } from '@/services/smsService';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AdminRegistrationsClientProps {
   initialPlayers: Player[];
 }
 
 export default function AdminRegistrationsClient({ initialPlayers }: AdminRegistrationsClientProps) {
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const [players, setPlayers] = useState<Player[]>(Array.isArray(initialPlayers) ? initialPlayers : []);
   const [showRegModal, setShowRegModal] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
   const [regForm, setRegForm] = useState({
     fullName: '',
     department: '',
@@ -73,10 +75,18 @@ export default function AdminRegistrationsClient({ initialPlayers }: AdminRegist
     } catch (e) { toast.error("Failed"); } finally { setIsRegistering(false); }
   };
 
-  const handleViewReceipt = (url?: string) => {
-    if (!url) return toast.error("No receipt");
-    const win = window.open();
-    win?.document.write(`<img src="${url}" style="max-width:100%;" />`);
+  const handleViewPlayerReceipt = async (playerId: string) => {
+    const promise = async () => {
+        const url = await getPaymentReceiptAction(playerId);
+        if (!url) throw new Error("No receipt found");
+        setActiveReceiptUrl(url);
+    };
+
+    toast.promise(promise(), {
+        loading: "Fetching receipt...",
+        success: "Receipt loaded",
+        error: (err) => err.message
+    });
   };
 
   const pending = players.filter(p => p.status === RegistrationStatus.PENDING);
@@ -116,7 +126,7 @@ export default function AdminRegistrationsClient({ initialPlayers }: AdminRegist
                             </td>
                             <td className="px-6 py-4 font-mono text-green-400 font-bold">{p.rating}</td>
                             <td className="px-6 py-4">
-                                <button onClick={() => handleViewReceipt(p.paymentReceipt)} className="text-[10px] text-slate-400 hover:text-white underline">View</button>
+                                <button onClick={() => handleViewPlayerReceipt(p.id)} className="text-[10px] text-slate-400 hover:text-white underline">View</button>
                             </td>
                             <td className="px-6 py-4 text-right space-x-2 flex justify-end">
                                 <button onClick={() => handleStatusChange(p, RegistrationStatus.APPROVED)} className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20" title="Approve"><Check className="h-4 w-4"/></button>
@@ -181,6 +191,55 @@ export default function AdminRegistrationsClient({ initialPlayers }: AdminRegist
             </div>
         </div>
       )}
+
+      {/* Sophisticated Receipt Viewer Modal */}
+      <AnimatePresence>
+        {activeReceiptUrl && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveReceiptUrl(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-slate-900 border border-slate-800 rounded-[32px] overflow-hidden max-w-2xl w-full max-h-[90vh] shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-green-500/10 rounded-lg">
+                    <ImageIcon className="h-5 w-5 text-green-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">Payment Proof</h3>
+                </div>
+                <button 
+                  onClick={() => setActiveReceiptUrl(null)}
+                  className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex items-center justify-center bg-slate-950/50">
+                <img 
+                  src={activeReceiptUrl} 
+                  alt="Payment Receipt" 
+                  className="max-w-full h-auto rounded-xl shadow-2xl ring-1 ring-white/10"
+                />
+              </div>
+
+              <div className="p-6 border-t border-slate-800 bg-slate-900/50 text-center">
+                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Verification Mode Active</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

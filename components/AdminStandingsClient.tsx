@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { updatePlayerStatsAction, getApprovedPlayersAction } from '@/app/actions';
+import { updatePlayerStatsAction, getApprovedPlayersAction, recalculateStandingsAction } from '@/app/actions';
 import { Player } from '@/types';
-import { Trophy, Save, X, Edit3 } from 'lucide-react';
+import { Trophy, Save, X, Edit3, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/Button';
 import { toast } from 'sonner';
 
 interface AdminStandingsClientProps {
@@ -11,7 +12,7 @@ interface AdminStandingsClientProps {
 }
 
 export default function AdminStandingsClient({ initialPlayers }: AdminStandingsClientProps) {
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const [players, setPlayers] = useState<Player[]>(Array.isArray(initialPlayers) ? initialPlayers : []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempRank, setTempRank] = useState('');
   const [tempScore, setTempScore] = useState('');
@@ -41,16 +42,35 @@ export default function AdminStandingsClient({ initialPlayers }: AdminStandingsC
     });
   };
 
+  const handleRecalculate = async () => {
+    const promise = async () => {
+      await recalculateStandingsAction();
+      await loadData();
+    };
+
+    toast.promise(promise(), {
+      loading: "Recalculating official positions...",
+      success: "Leaderboard synced successfully",
+      error: "Recalculation failed"
+    });
+  };
+
   return (
     <div className="space-y-8">
-      <div className="flex items-center space-x-4">
-        <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-            <Trophy className="h-6 w-6 text-yellow-500" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-4">
+          <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+              <Trophy className="h-6 w-6 text-yellow-500" />
+          </div>
+          <div>
+              <h2 className="text-2xl font-bold text-white">Tournament Standings</h2>
+              <p className="text-slate-500 text-sm">Update player scores and official rankings.</p>
+          </div>
         </div>
-        <div>
-            <h2 className="text-2xl font-bold text-white">Tournament Standings</h2>
-            <p className="text-slate-500 text-sm">Update player scores and official rankings.</p>
-        </div>
+        <Button onClick={handleRecalculate} variant="outline" className="h-10 border-slate-800 text-slate-400 hover:text-white group">
+          <RefreshCw className="h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+          Recalculate Positions
+        </Button>
       </div>
 
       <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">

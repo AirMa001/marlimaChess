@@ -10,11 +10,22 @@ export default async function AdminMatches() {
     getTournamentAction()
   ]);
 
-  return (
-    <AdminMatchesClient 
-      initialMatches={matches}
-      initialRound={tournament.currentRound}
-      initialStatus={tournament.status}
-    />
-  );
-}
+    return (
+
+      <AdminMatchesClient 
+
+        initialMatches={matches}
+
+        initialRound={tournament.currentRound}
+
+        initialStatus={tournament.status}
+
+        totalRounds={tournament.totalRounds || 5}
+
+      />
+
+    );
+
+  }
+
+  

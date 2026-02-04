@@ -52,6 +52,7 @@ model Match {
 model Tournament {
   id           Int      @id @default(1)
   currentRound Int      @default(1)
+  totalRounds  Int      @default(5)
   status       String   @default("IN_PROGRESS") // "IN_PROGRESS", "FINISHED"
   updatedAt    DateTime @updatedAt
 }

@@ -1,5 +1,6 @@
 .env
 .next
+seed.ts
 # Logs
 logs
 *.log

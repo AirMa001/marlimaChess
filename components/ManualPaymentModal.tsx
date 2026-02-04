@@ -22,17 +22,50 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ isOpen, 
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       
-      // Check size (10MB limit)
+      // Check size (10MB limit for raw file)
       if (selectedFile.size > 10 * 1024 * 1024) {
         toast.error("File too large", { description: "Please upload an image smaller than 10MB." });
-        e.target.value = ''; // Reset input
+        e.target.value = ''; 
         return;
       }
 
       setFile(selectedFile);
+      
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // Create canvas for compression
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Max dimensions for compression
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 0.7 quality
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          setPreview(compressedBase64);
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(selectedFile);
     }

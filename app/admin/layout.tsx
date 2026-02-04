@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LogOut, Users, Swords, Trophy, LayoutDashboard, Settings, RefreshCw, ShieldAlert } from 'lucide-react';
+import { LogOut, Users, Swords, Trophy, LayoutDashboard, Settings, RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { ADMIN_PASSWORD } from '@/constants';
 import { toast } from 'sonner';
+import { purgeRedisAction } from '@/app/actions';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -19,6 +20,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const auth = sessionStorage.getItem('admin_auth');
     setIsAuthenticated(auth === 'true');
   }, []);
+
+  const handlePurgeCache = async () => {
+    const promise = async () => {
+      await purgeRedisAction();
+      router.refresh();
+    };
+
+    toast.promise(promise(), {
+      loading: "Purging Redis cache...",
+      success: "Cache cleared & site synced",
+      error: "Failed to purge cache"
+    });
+  };
 
   const handleRefresh = () => {
     startTransition(() => {
@@ -112,9 +126,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         ))}
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                        <button 
-                            onClick={handleRefresh}
+                                    <div className="flex items-center space-x-2">
+                    
+                                        <button 
+                    
+                                            onClick={handlePurgeCache}
+                    
+                                            className="p-2 rounded-lg border border-slate-800 text-red-400 hover:text-red-300 transition-all bg-slate-950 hover:bg-red-500/10"
+                    
+                                            title="Purge Redis Cache (Fix Stale Data)"
+                    
+                                        >
+                    
+                                            <Trash2 className="h-4 w-4" />
+                    
+                                        </button>
+                    
+                                        <button 
+                    
+                                            onClick={handleRefresh}
+                    
+                    
                             disabled={isPending}
                             className={`p-2 rounded-lg border border-slate-800 text-slate-400 hover:text-white transition-all bg-slate-950 ${isPending ? 'bg-green-500/10 border-green-500/50' : ''}`}
                             title="Sync Data"
