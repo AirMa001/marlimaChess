@@ -638,7 +638,9 @@ export async function getMatchesAction() {
 
     // Store in Redis
     try {
-      await redis.set(CACHE_KEYS.MATCHES, finalMatches);
+      if (redis) {
+        await redis.set(CACHE_KEYS.MATCHES, finalMatches);
+      }
     } catch (e) {}
 
     return finalMatches;
@@ -713,7 +715,7 @@ export async function generateSwissPairingsAction(round: number) {
       pool = shuffleArray(pool);
     }
 
-    const pairings: { white: string, black: string }[] = [];
+    const pairings: { white: string, black: string, isBye?: boolean }[] = [];
 
     if (pool.length % 2 !== 0) {
         const byePlayer = pool.pop()!;
