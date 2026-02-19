@@ -1,31 +1,27 @@
-import React from 'react';
+import React, { use } from 'react';
 import { getMatchesAction, getTournamentAction } from '@/app/actions';
 import AdminMatchesClient from '@/components/AdminMatchesClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminMatches() {
-  const [matches, tournament] = await Promise.all([
-    getMatchesAction(),
-    getTournamentAction()
-  ]);
+export default function AdminMatches({ searchParams }: { searchParams: Promise<{ tournamentId?: string }> }) {
+  const { tournamentId } = use(searchParams);
+  const tid = tournamentId ? parseInt(tournamentId) : 1;
 
-    return (
+  const [matches, tournament] = use(Promise.all([
+    getMatchesAction(tid),
+    getTournamentAction(tid)
+  ]));
 
-      <AdminMatchesClient 
+  if (!tournament) return <div>Tournament not found</div>;
 
-        initialMatches={matches}
-
-        initialRound={tournament.currentRound}
-
-        initialStatus={tournament.status}
-
-        totalRounds={tournament.totalRounds || 5}
-
-      />
-
-    );
-
-  }
-
-  
+  return (
+    <AdminMatchesClient 
+      initialMatches={matches as any}
+      initialRound={tournament.currentRound}
+      initialStatus={tournament.status}
+      totalRounds={tournament.totalRounds || 5}
+      tournamentId={tid}
+    />
+  );
+}

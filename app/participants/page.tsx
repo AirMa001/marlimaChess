@@ -11,10 +11,12 @@ export default async function Participants() {
         getTournamentAction()
     ]);
 
+    if (!tournament) return <div>Tournament not found</div>;
+
     return (
         <ParticipantsClient 
-            initialPlayers={players} 
-            initialMatches={matches} 
+            initialPlayers={players as any} 
+            initialMatches={matches as any} 
             tournamentStatus={tournament.status} 
         />
     );

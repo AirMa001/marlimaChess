@@ -7,52 +7,161 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Player {
-  id              String   @id @default(uuid())
-  fullName        String
-  department      String
-  phoneNumber     String
-  chessUsername   String
-  platform        String
-  rating          Int
-  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  paymentReference String?
-  paymentReceipt  String?  @db.Text
-  registeredAt    DateTime @default(now())
-  
-  // Tournament Stats
-  rank            Int?     // Final position (1, 2, 3...)
-  score           Float    @default(0.0) // Tournament points
-  
-  // Relations
-  matchesAsWhite  Match[]  @relation("WhitePlayer")
-  matchesAsBlack  Match[]  @relation("BlackPlayer")
+// NextAuth Models
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
 
-  @@index([status])
-  @@index([score, rating])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
 }
 
-model Match {
-  id              String   @id @default(uuid())
-  round           Int      @default(1)
-  table           Int?
-  
-  whitePlayerId   String
-  whitePlayer     Player   @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
-  
-  blackPlayerId   String
-  blackPlayer     Player   @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
-  
-  result          String?  // "1-0", "0-1", "1/2-1/2", null (pending)
-  createdAt       DateTime @default(now())
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  @@index([round])
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  bio           String?   @db.Text
+  password      String?
+  phoneNumber   String?
+  
+  // External Stats
+  externalRating Int?     
+  chessUsername String?
+  platform      String?
+  
+  // Internal Performance Rating (Glicko-2)
+  siteRating      Float     @default(1500)
+  ratingDeviation Float     @default(350)
+  volatility      Float     @default(0.06)
+  gamesPlayed     Int       @default(0)
+
+  accounts      Account[]
+  sessions      Session[]
+  registrations Player[]  @relation("UserRegistrations")
+  
+  // Organized Tournaments
+  organizedTournaments Tournament[] @relation("OrganizedTournaments")
+
+  awards        Award[]
+  studies       Study[]
+}
+
+model Player {
+  id               String   @id @default(uuid())
+  fullName         String
+  department       String
+  phoneNumber      String
+  chessUsername    String
+  platform         String
+  
+  // Snapshot of ratings (Glicko-2)
+  rating           Float    @default(1500) 
+  ratingDeviation  Float    @default(350)
+  volatility       Float    @default(0.06)
+  
+  externalRating   Int?     // Verified rating for reference
+  
+  status           String   @default("PENDING")
+  paymentReference String?
+  paymentReceipt   String?  @db.Text
+  registeredAt     DateTime @default(now())
+  rank             Int?
+  score            Float    @default(0)
+
+  matchesAsWhite   Match[]  @relation("WhitePlayer")
+  matchesAsBlack   Match[]  @relation("BlackPlayer")
+  
+  userId           String?   
+  user             User?     @relation("UserRegistrations", fields: [userId], references: [id])
+
+  tournamentId     Int     
+  tournament       Tournament @relation(fields: [tournamentId], references: [id])
+}
+model Match {
+  id            String   @id @default(uuid())
+  round         Int
+  table         Int?
+  whitePlayerId String
+  blackPlayerId String?
+  result        String?  
+  createdAt     DateTime @default(now())
+
+  whitePlayer   Player   @relation("WhitePlayer", fields: [whitePlayerId], references: [id])
+  blackPlayer   Player?  @relation("BlackPlayer", fields: [blackPlayerId], references: [id])
 }
 
 model Tournament {
-  id           Int      @id @default(1)
+  id           Int      @id @default(autoincrement())
+  name         String   @default("New Tournament")
+  description  String?                         
+  image        String?  
+  timeControl  String?  @default("10+5")
+  location     String?  @default("Physical Venue")
+  contactEmail String?
+  contactPhone String?
   currentRound Int      @default(1)
   totalRounds  Int      @default(5)
-  status       String   @default("IN_PROGRESS") // "IN_PROGRESS", "FINISHED"
-  updatedAt    DateTime @updatedAt
+  status       String   @default("UPCOMING") 
+  startDate    DateTime @default(now())               
+  endDate      DateTime?  
+
+  players      Player[]                            
+
+  // Organizer Link
+  organizer    User?    @relation("OrganizedTournaments", fields: [organizerId], references: [id])
+  organizerId  String?                            
+}
+
+model Award {
+  id          String   @id @default(uuid())
+  title       String   
+  icon        String   
+  date        DateTime @default(now())
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Study {
+  id          String   @id @default(uuid())
+  title       String
+  description String?  @db.Text
+  type        String   @default("TEXT") // TEXT, IMAGE, VIDEO, PDF
+  content     String?  @db.Text // Markdown or main text
+  mediaUrl    String?  // Cloudinary URL or YouTube link
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

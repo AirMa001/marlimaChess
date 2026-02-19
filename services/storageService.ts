@@ -9,12 +9,12 @@ import {
     getTournamentAction 
 } from '@/app/actions';
 
-export const getPlayers = async (): Promise<Player[]> => {
-  return await getPlayersAction();
+export const getPlayers = async (tournamentId: number = 1): Promise<Player[]> => {
+  return await getPlayersAction(tournamentId) as any;
 };
 
-export const getMatches = async () => {
-  return await getMatchesAction();
+export const getMatches = async (tournamentId: number = 1) => {
+  return await getMatchesAction(tournamentId);
 };
 
 export const savePlayer = async (player: Player): Promise<Player | null> => {
@@ -27,11 +27,11 @@ export const savePlayer = async (player: Player): Promise<Player | null> => {
 };
 
 export const updatePlayerStatus = async (id: string, status: RegistrationStatus): Promise<Player[]> => {
-  return await updatePlayerStatusAction(id, status);
+  return await updatePlayerStatusAction(id, status) as any;
 };
 
 export const deletePlayer = async (id: string): Promise<Player[]> => {
-  return await deletePlayerAction(id);
+  return await deletePlayerAction(id) as any;
 };
 
 export { sendApprovalSMS, getTournamentAction };

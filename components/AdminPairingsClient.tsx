@@ -4,16 +4,18 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateSwissPairingsAction, generateRoundRobinAction, updateTournamentSettingsAction } from '@/app/actions';
 import { Button } from '@/components/Button';
-import { Repeat, Swords, Settings2 } from 'lucide-react';
+import { Repeat, Swords, Settings2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 interface AdminPairingsClientProps {
   initialPlayerCount: number;
   initialRound: number;
   initialTotalRounds: number;
+  tournamentId: number;
 }
 
-export default function AdminPairingsClient({ initialPlayerCount, initialRound, initialTotalRounds }: AdminPairingsClientProps) {
+export default function AdminPairingsClient({ initialPlayerCount, initialRound, initialTotalRounds, tournamentId }: AdminPairingsClientProps) {
   const router = useRouter();
   const [round, setRound] = useState(initialRound || 1);
   const [totalRounds, setTotalRounds] = useState(initialTotalRounds || 5);
@@ -23,7 +25,7 @@ export default function AdminPairingsClient({ initialPlayerCount, initialRound, 
   const handleUpdateTotalRounds = async () => {
     setIsUpdatingSettings(true);
     try {
-      await updateTournamentSettingsAction(totalRounds);
+      await updateTournamentSettingsAction(tournamentId, totalRounds);
       toast.success("Tournament settings updated");
     } catch (e) {
       toast.error("Failed to update settings");
@@ -43,15 +45,15 @@ export default function AdminPairingsClient({ initialPlayerCount, initialRound, 
                 setIsGenerating(true);
                 try {
                     if (type === 'round_robin') {
-                        await generateRoundRobinAction();
+                        await generateRoundRobinAction(tournamentId);
                     } else {
-                        await generateSwissPairingsAction(round);
+                        await generateSwissPairingsAction(round, tournamentId);
                     }
-                    toast.success("Matches generated");
+                    toast.success("Matches generated successfully");
                     router.refresh();
-                    setTimeout(() => router.push('/admin/matches'), 500);
+                    setTimeout(() => router.push(`/admin/matches?tournamentId=${tournamentId}`), 500);
                 } catch (e) {
-                    toast.error("Failed to generate");
+                    toast.error("Failed to generate pairings");
                 } finally {
                     setIsGenerating(false);
                 }
@@ -61,83 +63,105 @@ export default function AdminPairingsClient({ initialPlayerCount, initialRound, 
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-8">
-      <div className="text-center space-y-1 sm:space-y-2">
-        <h2 className="text-xl sm:text-3xl font-black text-white uppercase tracking-tight">Match Pairings</h2>
-        <p className="text-xs sm:text-sm text-slate-500">Configure the tournament structure.</p>
+    <div className="max-w-2xl mx-auto space-y-10">
+      <div className="text-center space-y-2 px-4">
+        <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight leading-none">Pairing Control</h2>
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Engine configuration & generation</p>
       </div>
 
-      <div className="bg-slate-900 rounded-[20px] sm:rounded-[32px] border border-slate-800 p-4 sm:p-8 shadow-2xl">
-        <div className="space-y-4 sm:space-y-8">
-            <div className="flex items-center justify-between p-3 sm:p-6 bg-slate-950 rounded-xl sm:rounded-2xl border border-slate-800 ring-1 ring-white/5">
-                <span className="text-slate-500 font-bold uppercase text-[9px] sm:text-xs tracking-widest">Contenders</span>
-                <span className="text-xl sm:text-3xl font-black text-green-500 font-mono">{initialPlayerCount}</span>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/[0.02] backdrop-blur-3xl rounded-[2.5rem] sm:rounded-[3.5rem] border border-white/5 p-6 sm:p-12 shadow-2xl relative overflow-hidden"
+      >
+        {/* Ambient glow */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-orange/5 blur-3xl rounded-full" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-600/5 blur-3xl rounded-full" />
+
+        <div className="space-y-8 sm:space-y-10 relative z-10">
+            <div className="flex items-center justify-between p-5 sm:p-8 bg-white/[0.02] rounded-2xl sm:rounded-[2rem] border border-white/5 shadow-inner group transition-all hover:bg-white/[0.04]">
+                <div className="space-y-1">
+                    <span className="text-slate-500 font-black uppercase text-[9px] sm:text-xs tracking-widest">Approved Contenders</span>
+                    <p className="text-xs text-slate-600 font-bold uppercase tracking-tighter">Ready for deployment</p>
+                </div>
+                <span className="text-3xl sm:text-5xl font-black text-brand-orange font-mono group-hover:scale-110 transition-transform">{initialPlayerCount}</span>
             </div>
 
-            <div className="space-y-2 sm:space-y-4 bg-slate-950/50 p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-slate-800/50">
-                <div className="flex items-center space-x-2 mb-1 sm:mb-2">
-                    <Settings2 className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500" />
-                    <label className="block text-[9px] sm:text-xs font-black text-slate-500 uppercase tracking-widest">Tournament Length</label>
+            <div className="space-y-4 sm:space-y-6 bg-black/20 p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-white/5">
+                <div className="flex items-center space-x-3 mb-2">
+                    <div className="p-2 bg-brand-orange/10 rounded-lg">
+                        <Settings2 className="h-4 w-4 text-brand-orange" />
+                    </div>
+                    <label className="block text-[10px] sm:text-xs font-black text-white uppercase tracking-widest leading-none">Tournament Length</label>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                    <input 
-                        type="number" 
-                        value={totalRounds} 
-                        onChange={e => setTotalRounds(parseInt(e.target.value) || 1)}
-                        className="w-full sm:flex-1 bg-slate-950 border border-slate-800 rounded-lg sm:rounded-xl px-3 sm:px-4 py-2 sm:py-3 text-base sm:text-lg text-white font-black focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-                        placeholder="Rounds"
-                    />
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1 group">
+                        <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                        <input 
+                            type="number" 
+                            value={totalRounds} 
+                            onChange={e => setTotalRounds(parseInt(e.target.value) || 1)}
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl sm:rounded-2xl pl-12 pr-4 py-3 sm:py-4 text-lg text-white font-black focus:ring-2 focus:ring-brand-orange/30 outline-none transition-all"
+                            placeholder="Rounds"
+                        />
+                    </div>
                     <Button 
                         onClick={handleUpdateTotalRounds}
                         isLoading={isUpdatingSettings}
-                        variant="outline"
-                        className="w-full sm:w-auto px-4 sm:px-6 border-slate-800 text-[9px] sm:text-xs font-bold uppercase tracking-wider h-10 sm:h-12"
+                        className="w-full sm:w-auto px-8 bg-white text-slate-950 hover:bg-brand-orange hover:text-white font-black uppercase text-xs tracking-[0.2em] h-14 rounded-xl sm:rounded-2xl shadow-xl shadow-white/5 transition-all"
                     >
                         Save
                     </Button>
                 </div>
-                <p className="text-[8px] sm:text-[9px] text-slate-600 font-medium ml-1">Set how many rounds will be played in total.</p>
+                <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest ml-1 opacity-60">Define official round count for this event</p>
             </div>
 
-            <div className="space-y-2 sm:space-y-4">
-                <label className="block text-[9px] sm:text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Generation Target</label>
-                <div className="w-full bg-slate-950 border border-slate-800 rounded-xl sm:rounded-2xl px-3 sm:px-6 py-3 sm:py-5 flex items-center justify-between shadow-inner">
-                    <span className="text-slate-500 font-bold uppercase text-[9px] tracking-widest">Generating For</span>
-                    <span className="text-lg sm:text-3xl font-black text-white font-mono">Round {round}</span>
+            <div className="space-y-4">
+                <div className="flex items-center space-x-3 mb-2 ml-1">
+                    <div className="p-2 bg-white/5 rounded-lg">
+                        <Swords className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <label className="block text-[10px] sm:text-xs font-black text-white uppercase tracking-widest leading-none">Target Execution</label>
+                </div>
+                <div className="w-full bg-white/[0.02] border border-white/5 rounded-2xl sm:rounded-[2rem] px-6 sm:px-10 py-5 sm:py-8 flex items-center justify-between shadow-inner group transition-all hover:bg-white/[0.04]">
+                    <span className="text-slate-500 font-black uppercase text-[10px] sm:text-xs tracking-[0.3em]">Current Round</span>
+                    <span className="text-3xl sm:text-5xl font-black text-white font-mono group-hover:text-brand-orange transition-colors tracking-tighter">{round}</span>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:gap-4 pt-2">
+            <div className="grid grid-cols-1 gap-3 sm:gap-5 pt-4">
                 <Button 
                     onClick={() => handleAutoPair('swiss')} 
-                    variant="secondary"
-                    className="h-14 sm:h-20 text-sm sm:text-lg justify-start px-3 sm:px-8 bg-slate-950 border-2 border-slate-800 hover:border-green-500 transition-all group rounded-xl sm:rounded-2xl"
+                    className="h-16 sm:h-24 text-sm sm:text-xl justify-start px-5 sm:px-10 bg-brand-orange hover:bg-white text-white hover:text-slate-950 transition-all group rounded-2xl sm:rounded-[2.5rem] shadow-xl shadow-brand-orange/10 border-none relative overflow-hidden"
                     isLoading={isGenerating}
                 >
-                    <div className="p-2 sm:p-3 bg-green-500/10 rounded-lg sm:rounded-xl mr-3 sm:mr-5 group-hover:bg-green-500/20 transition-colors">
-                        <Swords className="h-4 w-4 sm:h-6 sm:w-6 text-green-500" />
+                    <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 blur-3xl rounded-full" />
+                    <div className="p-3 sm:p-4 bg-white/20 rounded-xl sm:rounded-2xl mr-4 sm:mr-8 group-hover:bg-slate-950 group-hover:text-white transition-all shadow-lg">
+                        <Swords className="h-5 w-5 sm:h-8 sm:w-8" />
                     </div>
-                    <div className="text-left">
-                        <p className="font-black text-white uppercase tracking-tight text-xs sm:text-base">Swiss System</p>
+                    <div className="text-left relative z-10">
+                        <p className="font-black uppercase tracking-widest text-xs sm:text-sm mb-1 opacity-80">Methodology</p>
+                        <p className="font-black uppercase tracking-tight text-lg sm:text-2xl">Swiss System</p>
                     </div>
                 </Button>
 
                 <Button 
                     onClick={() => handleAutoPair('round_robin')} 
-                    variant="outline"
-                    className="h-14 sm:h-20 text-sm sm:text-lg justify-start px-3 sm:px-8 border-2 border-slate-800 hover:bg-slate-900 transition-all group rounded-xl sm:rounded-2xl"
+                    variant="ghost"
+                    className="h-16 sm:h-24 text-sm sm:text-xl justify-start px-5 sm:px-10 bg-white/[0.03] border border-white/10 hover:bg-white/10 hover:border-brand-orange transition-all group rounded-2xl sm:rounded-[2.5rem]"
                     isLoading={isGenerating}
                 >
-                    <div className="p-2 sm:p-3 bg-slate-800 rounded-lg sm:rounded-xl mr-3 sm:mr-5 group-hover:bg-slate-700 transition-colors">
-                        <Repeat className="h-4 w-4 sm:h-6 sm:w-6 text-slate-400" />
+                    <div className="p-3 sm:p-4 bg-white/5 rounded-xl sm:rounded-2xl mr-4 sm:mr-8 group-hover:bg-brand-orange/10 group-hover:text-brand-orange transition-all shadow-inner">
+                        <Repeat className="h-5 w-5 sm:h-8 sm:w-8 text-slate-500 group-hover:text-brand-orange" />
                     </div>
                     <div className="text-left">
-                        <p className="font-black text-slate-300 uppercase tracking-tight text-xs sm:text-base">Round Robin</p>
+                        <p className="font-black text-slate-500 uppercase tracking-widest text-[10px] sm:text-xs mb-1 group-hover:text-brand-orange transition-colors">Alternative</p>
+                        <p className="font-black text-slate-300 uppercase tracking-tight text-lg sm:text-2xl group-hover:text-white transition-colors">Round Robin</p>
                     </div>
                 </Button>
             </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

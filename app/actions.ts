@@ -7,13 +7,16 @@ import { sendMatchNotificationSMS } from '@/services/smsService';
 import { generateTournamentAnalysis } from '@/services/geminiService';
 import { redis } from '@/lib/redis';
 import cloudinary from '@/lib/cloudinary';
+import { rankingManager } from '@/lib/glicko';
+import { Swiss } from 'tournament-pairings';
+import crypto from 'crypto';
+// @ts-ignore
+import { Player as GlickoPlayer } from 'glicko2.ts';
 
 function safeRevalidatePath(path: string, type?: 'layout' | 'page') {
   try {
     revalidatePath(path, type);
-  } catch (e) {
-    // console.warn(`⚠️ [Next.js] revalidatePath failed for ${path}`);
-  }
+  } catch (e) {}
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -25,811 +28,533 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-const CACHE_KEYS = {
-  ALL_PLAYERS: 'players:all',
-  APPROVED_PLAYERS: 'players:approved',
-  MATCHES: 'matches:all',
-  TOURNAMENT: 'tournament:state',
-};
+/**
+ * Manual Swiss Pairing Fallback
+ * Used if the external library fails or returns empty pairings.
+ */
+function manualSwissFallback(players: any[], pastMatches: any[], round: number) {
+  console.log(`🛡️ [Swiss] Executing FIDE Dutch System for ${players.length} players (Round ${round})...`);
+  
+  const history = players.reduce((acc: any, p) => {
+    const myMatches = pastMatches.filter(m => m.whitePlayerId === p.id || m.blackPlayerId === p.id)
+      .sort((a, b) => a.round - b.round);
 
-const BYE_PLAYER_ID = 'BYE_VIRTUAL_ID';
+    acc[p.id] = {
+      opponents: new Set(myMatches.map(m => m.whitePlayerId === p.id ? m.blackPlayerId : m.whitePlayerId).filter(id => id !== null)),
+      colors: myMatches.map(m => m.whitePlayerId === p.id ? 'W' : 'B'),
+      hasHadBye: myMatches.some(m => m.whitePlayerId === p.id && m.blackPlayerId === null)
+    };
+    return acc;
+  }, {});
 
-async function invalidateAllCache() {
-  if (!redis) return;
-  console.log("🧹 [Redis] Invalidation triggered. Clearing all cached data...");
-  try {
-    await Promise.all([
-      redis.del(CACHE_KEYS.ALL_PLAYERS),
-      redis.del(CACHE_KEYS.APPROVED_PLAYERS),
-      redis.del(CACHE_KEYS.MATCHES),
-      redis.del(CACHE_KEYS.TOURNAMENT),
-    ]);
-    // Wrap revalidatePath in a try-catch as it can fail in certain contexts
-    try {
-      safeRevalidatePath('/', 'layout');
-    } catch (revalidateError) {
-      console.warn("⚠️ [Next.js] revalidatePath failed (expected if outside request context)");
-    }
-  } catch (error) {
-    console.error("❌ [Redis] Cache Invalidation Error:", error);
-  }
-}
+  let pool = [...players].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.rating - a.rating;
+  });
 
-export const getCachedAnalysis = unstable_cache(
-  async (players: Player[]) => {
-    return await generateTournamentAnalysis(players);
-  },
-  ['tournament-analysis'],
-  { revalidate: 3600, tags: ['analysis'] } // Cache for 1 hour or until revalidated
-);
+  const pairings: { white: string, black: string | null }[] = [];
+  const pairedIds = new Set<string>();
 
-export async function uploadImageAction(base64Image: string) {
-  try {
-    const uploadResponse = await cloudinary.uploader.upload(base64Image, {
-      folder: 'marlima_chess_receipts',
-      timeout: 60000, // 60 seconds
-    });
-    return uploadResponse.secure_url;
-  } catch (error) {
-    console.error("Cloudinary Upload Error:", error);
-    throw new Error("Failed to upload image to Cloudinary");
-  }
-}
-
-export async function getPaymentReceiptAction(playerId: string) {
-  try {
-    const player = await prisma.player.findUnique({
-      where: { id: playerId },
-      select: { paymentReceipt: true }
-    });
-    return player?.paymentReceipt || null;
-  } catch (error) {
-    console.error("Failed to fetch receipt:", error);
-    return null;
-  }
-}
-
-export async function purgeRedisAction() {
-  try {
-    await invalidateAllCache();
-    return { success: true };
-  } catch (e) {
-    return { success: false };
-  }
-}
-
-export async function getPlayersAction() {
-  try {
-    // Try to get from Redis
-    if (redis) {
-      try {
-        const cached = await redis.get<Player[]>(CACHE_KEYS.ALL_PLAYERS);
-        if (cached && Array.isArray(cached)) {
-          console.log("⚡ [Redis] Serving all players from cache");
-          return cached;
-        } else if (cached) {
-          console.warn("⚠️ [Redis] Cached data for all players is not an array. Ignoring cache.");
-        }
-      } catch (cacheError) {
-        console.error("❌ [Redis] Cache fetch error (falling back to DB):", cacheError);
+  if (pool.length % 2 !== 0) {
+    let byeCandidateIndex = -1;
+    for (let i = pool.length - 1; i >= 0; i--) {
+      if (!history[pool[i].id].hasHadBye) {
+        byeCandidateIndex = i;
+        break;
       }
     }
+    if (byeCandidateIndex === -1) byeCandidateIndex = pool.length - 1;
+    
+    const byePlayer = pool[byeCandidateIndex];
+    pairings.push({ white: byePlayer.id, black: null });
+    pairedIds.add(byePlayer.id);
+    pool.splice(byeCandidateIndex, 1);
+  }
 
-    console.log("🗄️ [DB] Cache miss. Fetching all players from Database...");
+  const buckets: any = {};
+  pool.forEach(p => {
+    const s = p.score.toString();
+    if (!buckets[s]) buckets[s] = [];
+    buckets[s].push(p);
+  });
+
+  const sortedScores = Object.keys(buckets).map(Number).sort((a, b) => b - a);
+  let floaters: any[] = [];
+
+  const canPlayColor = (playerId: string, color: 'W' | 'B') => {
+    const pHistory = (history as any)[playerId].colors;
+    if (pHistory.length < 2) return true;
+    const lastTwo = pHistory.slice(-2);
+    return !(lastTwo[0] === color && lastTwo[1] === color);
+  };
+
+  const tryPair = (p1: any, p2: any) => {
+    if (pairedIds.has(p1.id) || pairedIds.has(p2.id)) return null;
+    if ((history as any)[p1.id].opponents.has(p2.id)) return null;
+
+    const p1CanW = canPlayColor(p1.id, 'W');
+    const p1CanB = canPlayColor(p1.id, 'B');
+    const p2CanW = canPlayColor(p2.id, 'W');
+    const p2CanB = canPlayColor(p2.id, 'B');
+
+    return { white: p1, black: p2 };
+  };
+
+  for (const score of sortedScores) {
+    const bucket = buckets[score];
+    for (let i = 0; i < bucket.length; i++) {
+      const p1 = bucket[i];
+      if (pairedIds.has(p1.id)) continue;
+
+      for (let j = i + 1; j < bucket.length; j++) {
+        const p2 = bucket[j];
+        if (pairedIds.has(p2.id)) continue;
+
+        const pair = tryPair(p1, p2);
+        if (pair) {
+          pairings.push({ white: pair.white.id, black: pair.black.id });
+          pairedIds.add(p1.id);
+          pairedIds.add(p2.id);
+          break;
+        }
+      }
+    }
+    floaters = [...floaters, ...bucket.filter((p: any) => !pairedIds.has(p.id))];
+  }
+
+  while (floaters.length >= 2) {
+    const p1 = floaters.shift();
+    const p2 = floaters.shift();
+    pairings.push({ white: p1.id, black: p2.id });
+    pairedIds.add(p1.id);
+    pairedIds.add(p2.id);
+  }
+  
+  if (floaters.length === 1) {
+    pairings.push({ white: floaters[0].id, black: null });
+  }
+
+  return pairings;
+}
+
+async function autoAssignPositions(tournamentId: number) {
+  try {
     const players = await prisma.player.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        department: true,
-        phoneNumber: true,
-        chessUsername: true,
-        platform: true,
-        rating: true,
-        status: true,
-        registeredAt: true,
-        rank: true,
-        score: true,
-        // Excluded: paymentReceipt, paymentReference
-      },
+      where: { tournamentId, status: RegistrationStatus.APPROVED },
       orderBy: [
-        { score: 'desc' }, 
+        { score: 'desc' },
         { rating: 'desc' }
       ]
     });
-    
-    const formattedPlayers = players.map(p => ({
-      ...p,
-      registeredAt: p.registeredAt.toISOString(),
-      status: p.status as RegistrationStatus, 
-      platform: p.platform as any 
-    })) as Player[];
 
-    // Store in Redis
-    if (redis) {
-      try {
-        console.log("🔄 [Redis] Updating cache with fresh data from DB...");
-        await redis.set(CACHE_KEYS.ALL_PLAYERS, formattedPlayers);
-      } catch (cacheError) {
-        console.error("❌ [Redis] Cache store error:", cacheError);
-      }
-    }
-    
-    return formattedPlayers;
-  } catch (error) {
-    console.error("Failed to fetch players:", error);
-    return [];
-  }
-}
-
-export async function getApprovedPlayersAction() {
-  try {
-    // Try to get from Redis
-    if (redis) {
-      try {
-        const cached = await redis.get<Player[]>(CACHE_KEYS.APPROVED_PLAYERS);
-        if (cached && Array.isArray(cached)) {
-          console.log("⚡ [Redis] Serving approved players from cache");
-          return cached;
-        } else if (cached) {
-          console.warn("⚠️ [Redis] Cached data for approved players is not an array. Ignoring cache.");
-        }
-      } catch (cacheError) {
-        console.error("❌ [Redis] Cache fetch error (falling back to DB):", cacheError);
-      }
-    }
-
-    console.log("🗄️ [DB] Cache miss. Fetching approved players from Database...");
-    const players = await prisma.player.findMany({
-      where: { status: 'APPROVED' },
-      select: {
-        id: true,
-        fullName: true,
-        department: true,
-        chessUsername: true,
-        platform: true,
-        rating: true,
-        score: true,
-        rank: true,
-        registeredAt: true,
-        status: true,
-        // Excluded: phoneNumber, paymentReference, paymentReceipt
-      },
-      orderBy: [
-        { score: 'desc' }, 
-        { rating: 'desc' }
-      ]
-    });
-    
-    const formattedPlayers = players.map(p => ({
-      ...p,
-      registeredAt: p.registeredAt.toISOString(),
-      status: p.status as RegistrationStatus, 
-      platform: p.platform as any 
-    })) as Player[];
-
-    // Store in Redis
-    if (redis) {
-      try {
-        console.log("🔄 [Redis] Updating approved players cache...");
-        await redis.set(CACHE_KEYS.APPROVED_PLAYERS, formattedPlayers);
-      } catch (cacheError) {
-        console.error("❌ [Redis] Cache store error:", cacheError);
-      }
-    }
-
-    return formattedPlayers;
-  } catch (error) {
-    console.error("Failed to fetch approved players:", error);
-    return [];
-  }
-}
-
-export async function savePlayerAction(playerData: Player) {
-  try {
-    const player = await prisma.player.create({
-      data: {
-        id: playerData.id,
-        fullName: playerData.fullName,
-        department: playerData.department,
-        phoneNumber: playerData.phoneNumber,
-        chessUsername: playerData.chessUsername,
-        platform: playerData.platform,
-        rating: playerData.rating,
-        status: playerData.status,
-        paymentReference: playerData.paymentReference,
-        paymentReceipt: playerData.paymentReceipt,
-        registeredAt: new Date(playerData.registeredAt),
-      }
-    });
-    
-    await invalidateAllCache();
-    safeRevalidatePath('/admin');
-    safeRevalidatePath('/participants');
-    return player;
-  } catch (error) {
-    console.error("Failed to create player:", error);
-    throw new Error("Failed to create player");
-  }
-}
-
-export async function updatePlayerStatusAction(id: string, status: RegistrationStatus) {
-  try {
-    await prisma.player.update({
-      where: { id },
-      data: { status }
-    });
-    await invalidateAllCache();
-    safeRevalidatePath('/admin');
-    safeRevalidatePath('/participants');
-    return await getPlayersAction();
-  } catch (error) {
-    console.error("Failed to update status:", error);
-    return [];
-  }
-}
-
-export async function updatePlayerStatsAction(id: string, rank: number | null, score: number) {
-  try {
-    await prisma.player.update({
-      where: { id },
-      data: { rank, score }
-    });
-    await invalidateAllCache();
-    safeRevalidatePath('/admin');
-    safeRevalidatePath('/admin/standings');
-    safeRevalidatePath('/participants');
-    return await getPlayersAction();
-  } catch (error) {
-    console.error("Failed to update player stats:", error);
-    return [];
-  }
-}
-
-export async function deletePlayerAction(id: string) {
-  try {
-    // 1. Delete all matches where this player is either white or black
-    await prisma.match.deleteMany({
-      where: {
-        OR: [
-          { whitePlayerId: id },
-          { blackPlayerId: id }
-        ]
-      }
-    });
-
-    // 2. Delete the player
-    await prisma.player.delete({
-      where: { id }
-    });
-
-    await invalidateAllCache();
-    safeRevalidatePath('/admin');
-    safeRevalidatePath('/participants');
-    return await getPlayersAction();
-  } catch (error) {
-    console.error("Failed to delete player:", error);
-    return [];
-  }
-}
-
-// --- Tournament State Actions ---
-
-export async function recalculateStandingsAction() {
-  await autoAssignPositions();
-  await invalidateAllCache();
-  return { success: true };
-}
-
-async function autoAssignPositions() {
-  console.log("🏆 [Standings] Recalculating official positions using Buchholz tie-breaker...");
-  try {
-    const players = await prisma.player.findMany({
-      where: { status: RegistrationStatus.APPROVED }
-    });
-
-    const matches = await prisma.match.findMany({
-      where: { result: { not: null } }
-    });
-
-    // Create a map for quick score lookups
-    const scoreMap = new Map(players.map(p => [p.id, p.score]));
-
-    // Calculate Tie-Break Score (Buchholz) for each player
-    const playersWithTieBreak = players.map(player => {
-      // Find all opponents this player has faced
-      const opponentsIds = matches
-        .filter(m => m.whitePlayerId === player.id || m.blackPlayerId === player.id)
-        .map(m => m.whitePlayerId === player.id ? m.blackPlayerId : m.whitePlayerId);
-
-      // Sum up the current scores of all opponents
-      const buchholzScore = opponentsIds.reduce((sum, id) => sum + (scoreMap.get(id) || 0), 0);
-
-      return {
-        ...player,
-        buchholzScore
-      };
-    });
-
-    // Sort: 1. Points (desc), 2. Buchholz (desc), 3. Rating (desc fallback)
-    playersWithTieBreak.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if (b.buchholzScore !== a.buchholzScore) return b.buchholzScore - a.buchholzScore;
-      return b.rating - a.rating;
-    });
-
-    // Update each player's rank based on their sorted order
-    const updates = playersWithTieBreak.map((player, index) => 
+    const updates = players.map((p, i) => 
       prisma.player.update({
-        where: { id: player.id },
-        data: { rank: index + 1 }
+        where: { id: p.id },
+        data: { rank: i + 1 }
       })
     );
 
     await prisma.$transaction(updates);
-    console.log("✅ [Standings] Positions updated successfully with Buchholz tie-breakers.");
   } catch (error) {
     console.error("❌ [Standings] Error auto-assigning positions:", error);
   }
 }
 
-async function calculateScoresForRound(round: number) {
+async function calculateScoresForRound(round: number, tournamentId: number) {
   const matches = await prisma.match.findMany({
-    where: { round: { equals: round } }
+    where: { 
+      round: { equals: round },
+      whitePlayer: { tournamentId }
+    },
+    include: {
+      whitePlayer: { include: { user: true } },
+      blackPlayer: { include: { user: true } }
+    }
   });
 
+  const playerUpdates = [];
+  const glickoMatches: [GlickoPlayer, GlickoPlayer, number][] = [];
+  const glickoPlayersMap = new Map<string, GlickoPlayer>();
+  const usersToUpdate = new Set<string>();
+
   for (const match of matches) {
-    if (!match.result) continue;
+    if (!match.result || !match.whitePlayer) continue;
 
-    let whitePoints = 0;
-    let blackPoints = 0;
+    let whiteScore = 0;
+    let blackScore = 0;
 
-    if (match.result === "1-0") {
-      whitePoints = 1;
-    } else if (match.result === "0-1") {
-      blackPoints = 1;
-    } else if (match.result === "1/2-1/2") {
-      whitePoints = 0.5;
-      blackPoints = 0.5;
+    if (match.result === "1-0") whiteScore = 1;
+    else if (match.result === "0-1") blackScore = 1;
+    else if (match.result === "1/2-1/2") {
+      whiteScore = 0.5;
+      blackScore = 0.5;
     }
 
-    await prisma.player.update({
+    playerUpdates.push(prisma.player.update({
       where: { id: match.whitePlayerId },
-      data: { score: { increment: whitePoints } }
-    });
+      data: { score: { increment: whiteScore } }
+    }));
 
-    await prisma.player.update({
-      where: { id: match.blackPlayerId },
-      data: { score: { increment: blackPoints } }
-    });
+    if (match.blackPlayerId) {
+      playerUpdates.push(prisma.player.update({
+        where: { id: match.blackPlayerId },
+        data: { score: { increment: blackScore } }
+      }));
+    }
+
+    if (match.whitePlayer.user && match.blackPlayer?.user) {
+      const whiteUser = match.whitePlayer.user;
+      const blackUser = match.blackPlayer.user;
+
+      if (!glickoPlayersMap.has(whiteUser.id)) {
+        glickoPlayersMap.set(whiteUser.id, rankingManager.makePlayer(whiteUser.siteRating, whiteUser.ratingDeviation, whiteUser.volatility));
+      }
+      if (!glickoPlayersMap.has(blackUser.id)) {
+        glickoPlayersMap.set(blackUser.id, rankingManager.makePlayer(blackUser.siteRating, blackUser.ratingDeviation, blackUser.volatility));
+      }
+
+      glickoMatches.push([glickoPlayersMap.get(whiteUser.id)!, glickoPlayersMap.get(blackUser.id)!, whiteScore]);
+      usersToUpdate.add(whiteUser.id);
+      usersToUpdate.add(blackUser.id);
+    }
   }
 
-  // Auto-calculate official ranks after score updates
-  await autoAssignPositions();
-  
+  if (playerUpdates.length > 0) await prisma.$transaction(playerUpdates);
+
+  if (glickoMatches.length > 0) {
+    rankingManager.updateRatings(glickoMatches);
+    const userRatingUpdates = Array.from(usersToUpdate).map(userId => {
+      const gp = glickoPlayersMap.get(userId)!;
+      return prisma.user.update({
+        where: { id: userId },
+        data: {
+          siteRating: gp.getRating(),
+          ratingDeviation: gp.getRd(),
+          volatility: gp.getVol(),
+          gamesPlayed: { increment: 1 }
+        }
+      });
+    });
+    await prisma.$transaction(userRatingUpdates);
+  }
+
+  await autoAssignPositions(tournamentId);
   await invalidateAllCache();
 }
 
-export async function getTournamentAction() {
+export async function getPlayerAction(id: string) {
   try {
-    // Try Redis
-    if (redis) {
-      try {
-        const cached = await redis.get<any>(CACHE_KEYS.TOURNAMENT);
-        if (cached && typeof cached.currentRound !== 'undefined') {
-          console.log("⚡ [Redis] Serving tournament state from cache");
-          return cached;
-        } else if (cached) {
-          console.warn("⚠️ [Redis] Cached tournament state is invalid. Purging...");
-          await redis.del(CACHE_KEYS.TOURNAMENT);
-        }
-      } catch (e) {}
-    }
-
-    console.log("🗄️ [DB] Cache miss. Fetching tournament state...");
-    let tournament = await (prisma.tournament as any).findUnique({ where: { id: 1 } });
-    if (!tournament) {
-      tournament = await (prisma.tournament as any).create({ data: { id: 1, currentRound: 1, totalRounds: 5 } });
-    }
-
-    // Store in Redis
-    if (redis) {
-      try {
-        await redis.set(CACHE_KEYS.TOURNAMENT, tournament);
-      } catch (e) {}
-    }
-
-    return tournament;
+    return await prisma.player.findUnique({ where: { id } });
   } catch (error) {
-    return { currentRound: 1, totalRounds: 5, status: "IN_PROGRESS" };
-  }
-}
-
-export async function updateTournamentSettingsAction(totalRounds: number) {
-  try {
-    const updated = await (prisma.tournament as any).upsert({
-      where: { id: 1 },
-      update: { totalRounds },
-      create: { id: 1, currentRound: 1, totalRounds }
-    });
-    await invalidateAllCache();
-    return updated;
-  } catch (error) {
-    console.error("Failed to update tournament settings:", error);
     return null;
   }
 }
 
-export async function advanceRoundAction() {
-  console.log("🚀 [Tournament] Advancing to next round...");
-  try {
-    const t = await getTournamentAction();
-    if (t.status === 'FINISHED') {
-      console.warn("⚠️ Tournament is already finished.");
-      return t;
+export async function getPlayersAction(tournamentId: number) {
+  return await prisma.player.findMany({
+    where: { tournamentId },
+    orderBy: { fullName: 'asc' },
+  });
+}
+
+export async function getApprovedPlayersAction(tournamentId: number = 1) {
+  return await prisma.player.findMany({
+    where: { tournamentId, status: RegistrationStatus.APPROVED },
+    orderBy: [
+      { rank: 'asc' },
+      { score: 'desc' },
+      { rating: 'desc' }
+    ],
+  });
+}
+
+export async function updatePlayerStatusAction(id: string, status: RegistrationStatus) {
+  await prisma.player.update({
+    where: { id },
+    data: { status }
+  });
+  safeRevalidatePath('/admin');
+  return await getPlayersAction((await getPlayerAction(id))?.tournamentId || 0);
+}
+
+export async function deletePlayerAction(id: string) {
+  const player = await getPlayerAction(id);
+  if (player?.paymentReceipt) {
+    await cloudinary.uploader.destroy(player.paymentReceipt.split('/').pop()?.split('.')[0] || '');
+  }
+  await prisma.player.delete({ where: { id } });
+  safeRevalidatePath('/admin');
+  return await getPlayersAction(player?.tournamentId || 0);
+}
+
+export async function savePlayerAction(playerData: any) {
+  const { id, tournamentId, ...data } = playerData;
+  const newPlayer = await prisma.player.create({
+    data: {
+      id: id || crypto.randomUUID(),
+      tournament: { connect: { id: tournamentId } },
+      ...data as any
     }
+  });
+  safeRevalidatePath(`/admin?tournamentId=${tournamentId}`);
+  safeRevalidatePath(`/tournaments/${tournamentId}`);
+  return newPlayer;
+}
+
+export async function getMatchAction(id: string) {
+  try {
+    return await prisma.match.findUnique({
+      where: { id },
+      include: {
+        whitePlayer: { select: { fullName: true } },
+        blackPlayer: { select: { fullName: true } }
+      }
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function getMatchesAction(tournamentId: number = 1) {
+  return await prisma.match.findMany({
+    where: { whitePlayer: { tournamentId } },
+    include: {
+      whitePlayer: { include: { user: true } },
+      blackPlayer: { include: { user: true } }
+    },
+    orderBy: [{ round: 'desc' }, { table: 'asc' }]
+  });
+}
+
+export async function invalidateAllCache() {
+  if (redis) await redis.flushall();
+  safeRevalidatePath('/');
+  safeRevalidatePath('/tournaments');
+  safeRevalidatePath('/awards');
+  safeRevalidatePath('/study');
+  safeRevalidatePath('/profile');
+  safeRevalidatePath('/admin');
+}
+
+export async function getTournamentAction(tournamentId?: number) {
+  const tid = tournamentId || 1;
+  try {
+    let tournament = await prisma.tournament.findUnique({ where: { id: tid } });
+    if (!tournament && tid === 1) {
+      tournament = await prisma.tournament.create({ data: { id: 1, currentRound: 1, totalRounds: 5, status: 'UPCOMING' } });
+    }
+    return tournament;
+  } catch (error) {
+    return { id: tid, currentRound: 1, totalRounds: 5, status: "UPCOMING" };
+  }
+}
+
+export async function updateTournamentSettingsAction(tournamentId: number, totalRounds: number) {
+  try {
+    const updated = await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { totalRounds }
+    });
+    await invalidateAllCache();
+    return updated;
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function advanceRoundAction(tournamentId: number) {
+  try {
+    const t = await getTournamentAction(tournamentId);
+    if (!t || t.status === 'FINISHED') return t;
 
     const currentRound = Number(t.currentRound);
-    if (isNaN(currentRound)) {
-      throw new Error(`Invalid current round: ${t.currentRound}`);
-    }
-    
     const nextRound = currentRound + 1;
     
-    // 1. Calculate scores for the round just ended
-    await calculateScoresForRound(currentRound);
+    await calculateScoresForRound(currentRound, tournamentId);
 
-    // 2. Check if we have reached the tournament limit
     if (nextRound > (t.totalRounds || 5)) {
-      console.log(`🏁 [Tournament] Round limit (${t.totalRounds}) reached. Finalizing tournament.`);
-      await (prisma.tournament as any).update({
-        where: { id: 1 },
+      await prisma.tournament.update({
+        where: { id: tournamentId },
         data: { status: "FINISHED" }
       });
       await invalidateAllCache();
-      safeRevalidatePath('/admin/matches');
-      safeRevalidatePath('/admin/standings');
-      safeRevalidatePath('/participants');
       return { ...t, status: "FINISHED" };
     }
     
-    // 3. Clean slate for the next round (delete any orphaned matches for nextRound)
-    console.log(`Clearing orphaned matches for Round ${nextRound}...`);
     await prisma.match.deleteMany({
-      where: { round: { equals: nextRound } }
+      where: { 
+        round: { equals: nextRound },
+        whitePlayer: { tournamentId }
+      }
     });
 
-    console.log(`Generating new Swiss pairings for Round ${nextRound}...`);
-    // 4. Generate Swiss pairings for the NEXT round
-    await generateSwissPairingsAction(nextRound);
+    await generateSwissPairingsAction(nextRound, tournamentId);
 
-    // 5. Update the tournament state to the next round
-    const updated = await (prisma.tournament as any).update({
-      where: { id: 1 },
+    const updated = await prisma.tournament.update({
+      where: { id: tournamentId },
       data: { currentRound: nextRound }
     });
 
     await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    safeRevalidatePath('/admin/standings');
-    safeRevalidatePath('/participants');
-    
-    console.log(`✅ Tournament advanced to Round ${nextRound}`);
     return updated;
   } catch (error: any) {
-    console.error("❌ Advance Round Error:", error);
     throw new Error(error.message || "Failed to advance round");
   }
 }
 
-export async function finishTournamentAction() {
+export async function finishTournamentAction(tournamentId: number) {
   try {
-    const t = await getTournamentAction();
-    await calculateScoresForRound(t.currentRound);
-    await (prisma.tournament as any).update({
-      where: { id: 1 },
+    const t = await getTournamentAction(tournamentId);
+    if (!t) return;
+    await calculateScoresForRound(t.currentRound, tournamentId);
+    await prisma.tournament.update({
+      where: { id: tournamentId },
       data: { status: "FINISHED" }
     });
     await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    safeRevalidatePath('/admin/standings');
-    safeRevalidatePath('/participants');
   } catch (error) {}
 }
 
-export async function resetTournamentAction() {
-    console.log("🧹 [Tournament] Resetting all match data and scores...");
+export async function resetTournamentAction(tournamentId: number) {
     try {
-        await prisma.player.updateMany({ data: { score: 0, rank: null } });
-        await prisma.match.deleteMany({}); 
+        await prisma.player.updateMany({ 
+          where: { tournamentId },
+          data: { score: 0, rank: null } 
+        });
+        await prisma.match.deleteMany({
+          where: { whitePlayer: { tournamentId } }
+        }); 
         
-        // Force round back to 1
-        await (prisma.tournament as any).upsert({
-            where: { id: 1 },
-            update: { currentRound: 1, status: "IN_PROGRESS" },
-            create: { id: 1, currentRound: 1, status: "IN_PROGRESS" }
+        await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: { currentRound: 1, status: "UPCOMING" }
         });
 
         await invalidateAllCache();
-        safeRevalidatePath('/admin/matches');
-        safeRevalidatePath('/admin/standings');
-        safeRevalidatePath('/participants');
-        console.log("✅ Tournament reset complete.");
-    } catch (e) {
-        console.error("❌ Reset Error:", e);
-    }
-}
-
-// --- Match Actions ---
-
-export async function getMatchesAction() {
-  try {
-    // Try Redis
-    if (redis) {
-      try {
-        const cached = await redis.get<Match[]>(CACHE_KEYS.MATCHES);
-        if (cached && Array.isArray(cached)) {
-          console.log("⚡ [Redis] Serving matches from cache");
-          return cached;
-        }
-      } catch (e) {}
-    }
-
-    console.log("🗄️ [DB] Cache miss. Fetching all matches...");
-    const matches = await prisma.match.findMany({
-      include: {
-        whitePlayer: {
-          select: { id: true, fullName: true }
-        },
-        blackPlayer: {
-          select: { id: true, fullName: true }
-        }
-      },
-      orderBy: [
-        { round: 'desc' },
-        { table: 'asc' }
-      ]
-    });
-    
-    const formattedMatches = matches.map(m => ({
-      ...m,
-      createdAt: m.createdAt.toISOString(),
-      whitePlayer: { ...m.whitePlayer } as unknown as Player,
-      blackPlayer: { ...m.blackPlayer } as unknown as Player
-    })) as Match[];
-
-    // --- Dynamic BYE detection ---
-    // If an approved player exists but has NO match in a particular round, 
-    // we inject a virtual BYE match for the UI.
-    const allApprovedPlayers = await prisma.player.findMany({
-      where: { status: RegistrationStatus.APPROVED },
-      select: { id: true, fullName: true }
-    });
-
-    const rounds = Array.from(new Set(formattedMatches.map(m => m.round)));
-    const byeMatches: Match[] = [];
-
-    rounds.forEach(r => {
-      const playersInRound = new Set([
-        ...formattedMatches.filter(m => m.round === r).map(m => m.whitePlayerId),
-        ...formattedMatches.filter(m => m.round === r).map(m => m.blackPlayerId)
-      ]);
-
-      allApprovedPlayers.forEach(p => {
-        if (!playersInRound.has(p.id)) {
-          byeMatches.push({
-            id: `bye-${r}-${p.id}`,
-            round: r,
-            table: 999,
-            whitePlayerId: p.id,
-            blackPlayerId: 'BYE',
-            result: '1/2-1/2',
-            createdAt: new Date().toISOString(),
-            whitePlayer: p as any,
-            blackPlayer: { id: 'BYE', fullName: 'BYE' } as any
-          });
-        }
-      });
-    });
-
-    const finalMatches = [...formattedMatches, ...byeMatches].sort((a, b) => {
-      if (b.round !== a.round) return b.round - a.round;
-      return (a.table || 0) - (b.table || 0);
-    });
-
-    // Store in Redis
-    try {
-      if (redis) {
-        await redis.set(CACHE_KEYS.MATCHES, finalMatches);
-      }
     } catch (e) {}
-
-    return finalMatches;
-  } catch (error) {
-    console.error("Failed to fetch matches:", error);
-    return [];
-  }
-}
-
-export async function createMatchAction(whiteId: string, blackId: string, round: number) {
-  try {
-    await prisma.match.create({
-      data: { whitePlayerId: whiteId, blackPlayerId: blackId, round }
-    });
-    await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    return await getMatchesAction();
-  } catch (error) {
-    return [];
-  }
 }
 
 export async function updateMatchResultAction(matchId: string, result: string) {
   try {
-    await prisma.match.update({
+    const m = await prisma.match.update({
       where: { id: matchId },
-      data: { result }
+      data: { result },
+      include: { whitePlayer: { select: { tournamentId: true } } }
     });
     await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    return await getMatchesAction();
+    return await getMatchesAction(m.whitePlayer.tournamentId);
   } catch (error) {
     return [];
   }
 }
 
-export async function deleteMatchAction(matchId: string) {
-  try {
-    await prisma.match.delete({ where: { id: matchId } });
-    await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    return await getMatchesAction();
-  } catch (error) {
-     return [];
-  }
-}
-
-// --- Automated Pairing Actions ---
-
-export async function generateSwissPairingsAction(round: number) {
-  console.log(`🎲 [Pairing] Generating Swiss pairings for Round ${round}...`);
+export async function generateSwissPairingsAction(round: number, tournamentId: number) {
   try {
     const players = await prisma.player.findMany({
-      where: { status: RegistrationStatus.APPROVED },
-      orderBy: [ { score: 'desc' }, { rating: 'desc' } ]
+      where: { status: RegistrationStatus.APPROVED, tournamentId },
+      include: {
+        matchesAsWhite: { select: { blackPlayerId: true } },
+        matchesAsBlack: { select: { whitePlayerId: true } }
+      }
     });
 
-    console.log(`Total approved players: ${players.length}`);
-    const pastMatches = await prisma.match.findMany({});
-    console.log(`Total past matches: ${pastMatches.length}`);
+    if (players.length < 2) return [];
 
-    if (players.length < 2) {
-      console.warn("⚠️ Not enough players to generate pairings.");
-      return [];
+    const formattedPlayers = players.map(p => {
+      const avoid = [
+        ...p.matchesAsWhite.map(m => m.blackPlayerId),
+        ...p.matchesAsBlack.map(m => m.whitePlayerId)
+      ].filter((id): id is string => id !== null);
+
+      return { id: p.id, score: p.score, avoid, rating: p.rating };
+    });
+
+    let pairings: any[] = [];
+    if (players.length >= 4) {
+      try {
+        pairings = Swiss(formattedPlayers, round);
+      } catch (externalError) {
+        pairings = manualSwissFallback(players, await prisma.match.findMany({ where: { whitePlayer: { tournamentId } } }), round);
+      }
+    } else {
+      pairings = manualSwissFallback(players, await prisma.match.findMany({ where: { whitePlayer: { tournamentId } } }), round);
     }
 
-    let pool = [...players];
+    const matchesToCreate = [];
+    const playerUpdates = [];
+    let table = 1;
 
-    // RANDOMIZE ONLY FOR ROUND 1
-    if (round === 1) {
-      console.log("🎲 [Pairing] Shuffling players for Round 1 randomization...");
-      pool = shuffleArray(pool);
-    }
+    for (const pair of pairings) {
+      const whiteId = pair.white || pair.player1;
+      const blackId = pair.black || pair.player2;
 
-    const pairings: { white: string, black: string, isBye?: boolean }[] = [];
-
-    if (pool.length % 2 !== 0) {
-        const byePlayer = pool.pop()!;
-        console.log(`🎁 [Bye] Assigned to: ${byePlayer.fullName}. Awarding 0.5 pts.`);
-        await prisma.player.update({
-            where: { id: byePlayer.id },
+      if (whiteId && blackId) {
+        matchesToCreate.push({
+          id: crypto.randomUUID(),
+          whitePlayerId: whiteId as string,
+          blackPlayerId: blackId as string,
+          round,
+          table: table++,
+          result: null
+        });
+        const wPlayer = players.find(p => p.id === whiteId);
+        const bPlayer = players.find(p => p.id === blackId);
+        if (wPlayer && bPlayer) {
+          sendMatchNotificationSMS(wPlayer as any, bPlayer.fullName, "WHITE", round);
+          sendMatchNotificationSMS(bPlayer as any, wPlayer.fullName, "BLACK", round);
+        }
+      } else {
+        const byePlayerId = (whiteId || blackId) as string;
+        if (byePlayerId) {
+          matchesToCreate.push({
+            id: crypto.randomUUID(),
+            whitePlayerId: byePlayerId,
+            blackPlayerId: null, 
+            round,
+            table: 999, 
+            result: "1/2-1/2" 
+          });
+          playerUpdates.push(prisma.player.update({
+            where: { id: byePlayerId },
             data: { score: { increment: 0.5 } }
-        });
-        // We don't create a Match record for BYE because of foreign key constraints
+          }));
+        }
+      }
     }
 
-    const pairedIds = new Set<string>();
-
-    for (let i = 0; i < pool.length; i++) {
-        const p1 = pool[i];
-        if (pairedIds.has(p1.id)) continue;
-
-        let found = false;
-        for (let j = i + 1; j < pool.length; j++) {
-            const p2 = pool[j];
-            if (pairedIds.has(p2.id)) continue;
-
-            const playedBefore = pastMatches.some(m => 
-                (m.whitePlayerId === p1.id && m.blackPlayerId === p2.id) ||
-                (m.whitePlayerId === p2.id && m.blackPlayerId === p1.id)
-            );
-
-            if (!playedBefore) {
-                // Pure random color selection for every match
-                if (Math.random() > 0.5) {
-                    pairings.push({ white: p1.id, black: p2.id });
-                } else {
-                    pairings.push({ white: p2.id, black: p1.id });
-                }
-                
-                pairedIds.add(p1.id);
-                pairedIds.add(p2.id);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            console.log(`Force pairing for ${p1.fullName} (no unplayed opponent found)`);
-            for (let j = i + 1; j < pool.length; j++) {
-                const p2 = pool[j];
-                if (!pairedIds.has(p2.id)) {
-                    // Randomize color for forced pairing
-                    if (Math.random() > 0.5) {
-                      pairings.push({ white: p1.id, black: p2.id });
-                    } else {
-                      pairings.push({ white: p2.id, black: p1.id });
-                    }
-                    pairedIds.add(p1.id);
-                    pairedIds.add(p2.id);
-                    break;
-                }
-            }
-        }
-    }
-
-    console.log(`Pairings to create: ${pairings.length}`);
-    if (pairings.length > 0) {
-        await prisma.match.createMany({
-            data: pairings.map((p, index) => ({
-                whitePlayerId: p.white,
-                blackPlayerId: p.black,
-                round,
-                table: index + 1,
-                result: p.isBye ? "1/2-1/2" : null // Automatically award 0.5 pts for BYE
-            }))
-        });
-        console.log("✅ Matches created in DB.");
-
-        // IMPORTANT: Update tournament state to this round
-        await (prisma.tournament as any).upsert({
-          where: { id: 1 },
-          update: { currentRound: round, status: 'IN_PROGRESS' },
-          create: { id: 1, currentRound: round, status: 'IN_PROGRESS' }
-        });
+    if (matchesToCreate.length > 0) {
+      await prisma.$transaction([
+        ...matchesToCreate.map(match => prisma.match.create({ data: match })),
+        ...playerUpdates,
+        prisma.tournament.update({
+          where: { id: tournamentId },
+          data: { currentRound: round, status: 'ONGOING' }
+        })
+      ]);
     }
 
     await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    return await getMatchesAction();
+    return await getMatchesAction(tournamentId);
   } catch (error) {
-    console.error("❌ Swiss Pairing Error:", error);
     return [];
   }
 }
 
-export async function generateRoundRobinAction() {
-  console.log("🔄 [Round Robin] Generating complete schedule...");
+export async function generateRoundRobinAction(tournamentId: number) {
   try {
     const players = await prisma.player.findMany({
-      where: { status: RegistrationStatus.APPROVED }
+      where: { status: RegistrationStatus.APPROVED, tournamentId }
     });
 
     if (players.length < 2) return [];
 
     const n = players.length;
-    // Shuffle initial list for randomness
     let rotation = shuffleArray(players.map(p => p.id));
-    
-    // For Round Robin, if odd number of players, add a BYE to make it even
-    if (n % 2 !== 0) {
-      rotation.push("BYE");
-    }
+    if (n % 2 !== 0) rotation.push("BYE");
 
-    // A complete round robin requires (Number of Players - 1) rounds
     const roundsToGenerate = rotation.length - 1;
-    console.log(`🔄 [Round Robin] Creating complete cycle: ${roundsToGenerate} rounds for ${n} players.`);
-    
     const matchesToCreate = [];
+    const playerUpdates = [];
 
     for (let round = 1; round <= roundsToGenerate; round++) {
       let tableCount = 1;
@@ -837,28 +562,31 @@ export async function generateRoundRobinAction() {
         let p1 = rotation[i];
         let p2 = rotation[rotation.length - 1 - i];
         
-        // If one of the players is a BYE, handle it as a virtual match
         if (p1 === "BYE" || p2 === "BYE") {
           const realPlayerId = p1 === "BYE" ? p2 : p1;
           matchesToCreate.push({ 
+            id: crypto.randomUUID(),
             whitePlayerId: realPlayerId, 
-            blackPlayerId: BYE_PLAYER_ID, 
+            blackPlayerId: null, 
             round, 
-            table: 999, // Place BYE matches at the very bottom
+            table: 999, 
             result: "1/2-1/2" 
           });
+          playerUpdates.push(prisma.player.update({
+            where: { id: realPlayerId },
+            data: { score: { increment: 0.5 } }
+          }));
           continue;
         }
 
-        // Randomize colors
+        const matchId = crypto.randomUUID();
         if (Math.random() > 0.5) {
-          matchesToCreate.push({ whitePlayerId: p1, blackPlayerId: p2, round, table: tableCount++ });
+          matchesToCreate.push({ id: matchId, whitePlayerId: p1, blackPlayerId: p2, round, table: tableCount++ });
         } else {
-          matchesToCreate.push({ whitePlayerId: p2, blackPlayerId: p1, round, table: tableCount++ });
+          matchesToCreate.push({ id: matchId, whitePlayerId: p2, blackPlayerId: p1, round, table: tableCount++ });
         }
       }
       
-      // Rotate players using the Circle Algorithm (keep the first player fixed)
       const fixed = rotation[0];
       const rest = rotation.slice(1);
       const last = rest.pop()!;
@@ -866,20 +594,144 @@ export async function generateRoundRobinAction() {
       rotation = [fixed, ...rest];
     }
 
-    await prisma.match.createMany({ data: matchesToCreate });
-
-    // Update tournament settings to match the generated schedule
-    await (prisma.tournament as any).upsert({
-      where: { id: 1 },
-      update: { currentRound: 1, totalRounds: roundsToGenerate, status: 'IN_PROGRESS' },
-      create: { id: 1, currentRound: 1, totalRounds: roundsToGenerate, status: 'IN_PROGRESS' }
-    });
+    await prisma.$transaction([
+      ...matchesToCreate.map(match => prisma.match.create({ data: match })),
+      ...playerUpdates,
+      prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { currentRound: 1, totalRounds: roundsToGenerate, status: 'ONGOING' }
+      })
+    ]);
 
     await invalidateAllCache();
-    safeRevalidatePath('/admin/matches');
-    return await getMatchesAction();
+    return await getMatchesAction(tournamentId);
   } catch (error) {
-    console.error("❌ Round Robin Error:", error);
     return [];
+  }
+}
+
+export async function recalculateStandingsAction(tournamentId: number) {
+  try {
+    const matches = await prisma.match.findMany({
+      where: { whitePlayer: { tournamentId }, result: { not: null } },
+      include: { whitePlayer: true, blackPlayer: true }
+    });
+
+    await prisma.player.updateMany({
+      where: { tournamentId },
+      data: { score: 0 }
+    });
+
+    const playerScores: { [key: string]: number } = {};
+    const playerGamesPlayed: { [key: string]: number } = {};
+
+    matches.forEach(match => {
+      const whiteId = match.whitePlayerId;
+      const blackId = match.blackPlayerId;
+
+      if (match.result === "1-0") {
+        playerScores[whiteId] = (playerScores[whiteId] || 0) + 1;
+        playerGamesPlayed[whiteId] = (playerGamesPlayed[whiteId] || 0) + 1;
+        if (blackId) playerGamesPlayed[blackId] = (playerGamesPlayed[blackId] || 0) + 1;
+      } else if (match.result === "0-1") {
+        if (blackId) playerScores[blackId] = (playerScores[blackId] || 0) + 1;
+        playerGamesPlayed[whiteId] = (playerGamesPlayed[whiteId] || 0) + 1;
+        if (blackId) playerGamesPlayed[blackId] = (playerGamesPlayed[blackId] || 0) + 1;
+      } else if (match.result === "1/2-1/2") {
+        playerScores[whiteId] = (playerScores[whiteId] || 0) + 0.5;
+        if (blackId) playerScores[blackId] = (playerScores[blackId] || 0) + 0.5;
+        playerGamesPlayed[whiteId] = (playerGamesPlayed[whiteId] || 0) + 1;
+        if (blackId) playerGamesPlayed[blackId] = (playerGamesPlayed[blackId] || 0) + 1;
+      }
+    });
+
+    const playerUpdates = Object.entries(playerScores).map(([playerId, score]) => 
+      prisma.player.update({ where: { id: playerId }, data: { score } })
+    );
+    if (playerUpdates.length > 0) await prisma.$transaction(playerUpdates);
+
+    const allUsers = await prisma.user.findMany({ where: { registrations: { some: { tournamentId } } } });
+    const glickoMatches: [GlickoPlayer, GlickoPlayer, number][] = [];
+    const glickoPlayersMap = new Map<string, GlickoPlayer>();
+
+    for (const user of allUsers) {
+      glickoPlayersMap.set(user.id, rankingManager.makePlayer(user.siteRating, user.ratingDeviation, user.volatility));
+    }
+
+    matches.forEach(match => {
+      if (!match.result || !match.whitePlayer?.userId || !match.blackPlayer?.userId) return;
+      const whiteGP = glickoPlayersMap.get(match.whitePlayer.userId);
+      const blackGP = glickoPlayersMap.get(match.blackPlayer.userId);
+      if (!whiteGP || !blackGP) return;
+
+      let res = 0.5;
+      if (match.result === "1-0") res = 1;
+      else if (match.result === "0-1") res = 0;
+      glickoMatches.push([whiteGP, blackGP, res]);
+    });
+    
+    if (glickoMatches.length > 0) {
+      rankingManager.updateRatings(glickoMatches);
+      const userRatingUpdates = Array.from(glickoPlayersMap.entries()).map(([userId, gp]) => {
+        const user = allUsers.find(u => u.id === userId);
+        return prisma.user.update({
+          where: { id: userId },
+          data: {
+            siteRating: gp.getRating(),
+            ratingDeviation: gp.getRd(),
+            volatility: gp.getVol(),
+            gamesPlayed: (playerGamesPlayed[userId] || 0) + (user?.gamesPlayed || 0)
+          }
+        });
+      });
+      await prisma.$transaction(userRatingUpdates);
+    }
+    
+    await autoAssignPositions(tournamentId);
+    await invalidateAllCache();
+  } catch (error) {}
+}
+
+export async function uploadImageAction(base64Image: string): Promise<string> {
+  try {
+    const res = await cloudinary.uploader.upload(base64Image, { upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET });
+    return res.secure_url;
+  } catch (error) {
+    throw new Error("Upload failed");
+  }
+}
+
+export async function purgeRedisAction(): Promise<void> {
+  try {
+    if (redis) await redis.flushall();
+    await invalidateAllCache();
+  } catch (error) {
+    throw new Error("Purge failed");
+  }
+}
+
+export async function getPaymentReceiptAction(playerId: string): Promise<string | null> {
+  try {
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      select: { paymentReceipt: true }
+    });
+    return player?.paymentReceipt || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+export async function updatePlayerStatsAction(id: string, rank: number | null, score: number) {
+  try {
+    const updated = await prisma.player.update({
+      where: { id: id },
+      data: { rank, score }
+    });
+    await invalidateAllCache();
+    return updated;
+  } catch (error) {
+    console.error("Failed to update player stats:", error);
+    return null;
   }
 }

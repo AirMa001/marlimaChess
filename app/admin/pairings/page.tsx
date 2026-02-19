@@ -1,18 +1,21 @@
-import React from 'react';
+import React, { use } from 'react';
 import { getApprovedPlayersAction, getTournamentAction, getMatchesAction } from '@/app/actions';
 import AdminPairingsClient from '@/components/AdminPairingsClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminPairings() {
-  const [players, tournament, matches] = await Promise.all([
-    getApprovedPlayersAction(),
-    getTournamentAction(),
-    getMatchesAction()
-  ]);
+export default function AdminPairings({ searchParams }: { searchParams: Promise<{ tournamentId?: string }> }) {
+  const { tournamentId } = use(searchParams);
+  const tid = tournamentId ? parseInt(tournamentId) : 1;
 
-  // If we already have matches for the current round, 
-  // the 'Pairings' page should suggest generating for the NEXT round.
+  const [players, tournament, matches] = use(Promise.all([
+    getApprovedPlayersAction(tid),
+    getTournamentAction(tid),
+    getMatchesAction(tid)
+  ]));
+
+  if (!tournament) return <div>Tournament not found</div>;
+
   const currentRound = tournament.currentRound;
   const hasMatchesForCurrentRound = matches.some(m => m.round === currentRound);
   const targetRound = hasMatchesForCurrentRound ? currentRound + 1 : currentRound;
@@ -22,6 +25,7 @@ export default async function AdminPairings() {
       initialPlayerCount={players.length}
       initialRound={targetRound}
       initialTotalRounds={tournament.totalRounds || 5}
+      tournamentId={tid}
     />
   );
 }

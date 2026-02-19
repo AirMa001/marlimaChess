@@ -1,3 +1,28 @@
+import { DefaultSession } from "next-auth";
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      phoneNumber?: string;
+      chessUsername?: string;
+      platform?: ChessPlatform;
+      siteRating?: number;
+      externalRating?: number;
+      gamesPlayed?: number;
+    } & DefaultSession["user"]
+  }
+
+  interface User {
+    phoneNumber?: string;
+    chessUsername?: string;
+    platform?: ChessPlatform;
+    siteRating?: number;
+    externalRating?: number;
+    gamesPlayed?: number;
+  }
+}
+
 export enum RegistrationStatus {
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
@@ -22,11 +47,13 @@ export interface Player {
   phoneNumber: string;
   chessUsername: string;
   platform: ChessPlatform;
-  rating: number;
+  rating: number; // This is the tournament performance/site rating
+  externalRating?: number;
   status: RegistrationStatus;
   paymentReference?: string; // Generated ID for tracking
   paymentReceipt?: string; // Base64 Data URL of the screenshot
   registeredAt: string;
+  userId?: string;
   
   // Tournament Stats
   rank?: number | null;
