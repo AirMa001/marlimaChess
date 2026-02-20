@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { updatePlayerStatusAction, deletePlayerAction, savePlayerAction, getPaymentReceiptAction } from '@/app/actions';
+import { updatePlayerStatusAction, deletePlayerAction, savePlayerAction, getPaymentReceiptAction, getPlayersAction } from '@/app/actions';
 import { Player, RegistrationStatus, ChessPlatform } from '@/types';
 import { Button } from '@/components/Button';
-import { Check, X, Trash2, UserPlus, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Check, X, Trash2, UserPlus, Image as ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendApprovalSMS } from '@/services/smsService';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,19 @@ export default function AdminRegistrationsClient({ initialPlayers, tournamentId 
     platform: ChessPlatform.CHESS_COM,
     rating: ''
   });
+
+  const loadData = async () => {
+    const updated = await getPlayersAction(tournamentId);
+    setPlayers(updated as any);
+  };
+
+  const handleRefresh = () => {
+    toast.promise(loadData(), {
+      loading: "Fetching fresh records...",
+      success: "Registry synced",
+      error: "Sync failed"
+    });
+  };
 
   const handleStatusChange = async (player: Player, newStatus: RegistrationStatus) => {
     const promise = async () => {
@@ -104,9 +117,14 @@ export default function AdminRegistrationsClient({ initialPlayers, tournamentId 
             <h2 className="text-3xl font-black text-white uppercase tracking-tight leading-none">Player Registrations</h2>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Manage access & verification</p>
         </div>
-        <Button onClick={() => setShowRegModal(true)} className="bg-brand-orange h-12 w-12 p-0 rounded-2xl shadow-lg shadow-brand-orange/20">
-            <UserPlus className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleRefresh} className="h-12 w-12 flex items-center justify-center bg-white/5 border border-white/5 text-slate-500 hover:text-white rounded-xl transition-all" title="Sync Registry">
+              <RefreshCw className="h-4 w-4" />
+          </button>
+          <Button onClick={() => setShowRegModal(true)} className="bg-brand-orange h-12 w-12 p-0 rounded-2xl shadow-lg shadow-brand-orange/20">
+              <UserPlus className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white/[0.02] backdrop-blur-xl rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl">

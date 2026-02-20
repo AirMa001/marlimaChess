@@ -14,6 +14,7 @@ export async function GET(
         where: { id: tournamentId },
         include: {
           players: {
+            where: { status: 'APPROVED' },
             orderBy: [
               { rank: 'asc' }, 
               { score: 'desc' },

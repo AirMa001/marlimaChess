@@ -250,7 +250,7 @@ export async function getPlayerAction(id: string) {
   }
 }
 
-export async function getPlayersAction(tournamentId: number) {
+export async function getPlayersAction(tournamentId: number = 1) {
   return await prisma.player.findMany({
     where: { tournamentId },
     orderBy: { fullName: 'asc' },
@@ -288,11 +288,12 @@ export async function deletePlayerAction(id: string) {
 }
 
 export async function savePlayerAction(playerData: any) {
-  const { id, tournamentId, ...data } = playerData;
+  const { id, tournamentId, userId, ...data } = playerData;
   const newPlayer = await prisma.player.create({
     data: {
       id: id || crypto.randomUUID(),
       tournament: { connect: { id: tournamentId } },
+      ...(userId ? { user: { connect: { id: userId } } } : {}),
       ...data as any
     }
   });
