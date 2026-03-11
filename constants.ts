@@ -4,6 +4,6 @@ export const REGISTRATION_FEE = 1000; // Currency unit (e.g., NGN)
 
 export const BANK_DETAILS = {
   bankName: "Opay",
-  accountNumber: "7065953430",
-  accountName: "Cyril Ozomaro"
+  accountNumber: "7046183612",
+  accountName: "Emmanuel Anokwuru"
 };
