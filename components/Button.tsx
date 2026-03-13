@@ -17,10 +17,10 @@ export const Button: React.FC<ButtonProps> = memo(({
   
   const variants = {
     primary: "bg-brand-orange hover:bg-orange-600 text-white shadow-lg shadow-brand-orange/20",
-    secondary: "bg-slate-800 hover:bg-slate-700 text-white border border-white/5",
-    danger: "bg-red-600 hover:bg-red-700 text-white",
-    outline: "border-2 border-slate-800 hover:border-brand-orange text-slate-400 hover:text-white bg-transparent",
-    ghost: "bg-white/5 hover:bg-white/10 text-white border border-white/5"
+    secondary: "bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200",
+    danger: "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20",
+    outline: "border-2 border-slate-200 hover:border-brand-orange text-slate-500 hover:text-brand-orange bg-transparent",
+    ghost: "bg-slate-50 hover:bg-slate-100 text-slate-900 border border-slate-200"
   };
 
   return (

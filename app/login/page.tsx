@@ -194,18 +194,17 @@ function AuthContent() {
   const isPasswordValid = signupData.password.length >= 6;
 
   return (
-    <div className="min-h-[100dvh] bg-[#020617] flex items-center justify-center p-4 overflow-hidden relative selection:bg-brand-orange/30 font-sans">
+    <div className="min-h-[100dvh] bg-[#f8fafc] flex items-center justify-center p-4 overflow-hidden relative selection:bg-brand-orange/30 font-sans">
       {/* Optimized Background Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Using CSS-only or simpler motion for better perf */}
+        <div className="absolute inset-0 bg-[url('/chess-bg-light.png')] bg-cover bg-center opacity-40" />
         <div 
           className="absolute -top-[10%] -left-[10%] w-[60%] h-[60%] bg-brand-orange/10 blur-[120px] rounded-full animate-pulse-slow will-change-transform"
         />
         <div 
-          className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-blue-600/5 blur-[120px] rounded-full animate-pulse-slow-delay will-change-transform"
+          className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse-slow-delay will-change-transform"
         />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#020617]/50 to-[#020617]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white/80" />
       </div>
 
       <style jsx global>{`
@@ -223,7 +222,7 @@ function AuthContent() {
 
       <div className="w-full max-w-md sm:max-w-lg relative z-10 py-6">
         <div className="flex justify-center mb-8">
-          <div className="bg-white/[0.03] backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 flex relative overflow-hidden shadow-2xl w-60 sm:w-64">
+          <div className="bg-white/70 backdrop-blur-xl p-1.5 rounded-2xl border border-white flex relative overflow-hidden shadow-xl w-60 sm:w-64">
             <motion.div
               className="absolute inset-y-1.5 rounded-xl bg-brand-orange shadow-lg shadow-brand-orange/30"
               initial={false}
@@ -233,13 +232,13 @@ function AuthContent() {
             />
             <button
               onClick={() => setMode('login')}
-              className={`relative z-10 flex-1 py-2.5 text-[10px] font-black tracking-widest transition-colors ${mode === 'login' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`relative z-10 flex-1 py-2.5 text-[10px] font-black tracking-widest transition-colors ${mode === 'login' ? 'text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               LOGIN
             </button>
             <button
               onClick={() => { setMode('signup'); setSignupStep(1); }}
-              className={`relative z-10 flex-1 py-2.5 text-[10px] font-black tracking-widest transition-colors ${mode === 'signup' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`relative z-10 flex-1 py-2.5 text-[10px] font-black tracking-widest transition-colors ${mode === 'signup' ? 'text-white' : 'text-slate-500 hover:text-slate-900'}`}
             >
               SIGN UP
             </button>
@@ -255,30 +254,30 @@ function AuthContent() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98, y: -10 }}
                 transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-                className="bg-white/[0.02] backdrop-blur-3xl border border-white/5 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden relative will-change-transform"
+                className="bg-white/70 backdrop-blur-3xl border border-white p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-2xl overflow-hidden relative will-change-transform"
               >
                 {/* Subtle internal glow */}
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-orange/5 blur-3xl rounded-full" />
                 
                 <div className="text-center mb-10 relative z-10">
-                  <Link href="/" className="inline-flex items-center gap-2 mb-6 text-slate-500 hover:text-white transition-colors group">
+                  <Link href="/" className="inline-flex items-center gap-2 mb-6 text-slate-400 hover:text-slate-900 transition-colors group">
                     <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Back to Home</span>
                   </Link>
-                  <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase leading-none">Welcome Back</h2>
+                  <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">Welcome Back</h2>
                   <p className="text-slate-500 text-xs mt-3 font-medium uppercase tracking-widest opacity-60">Tournament Management Portal</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-6 relative z-10">
                   <div className="space-y-5">
                     <div className="space-y-2">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Email</label>
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
                       <div className="relative group">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                         <input
                           type="email"
                           required
-                          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-white text-sm focus:border-brand-orange/30 focus:bg-white/[0.05] outline-none transition-all placeholder-slate-700"
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 text-sm focus:border-brand-orange/30 focus:bg-white outline-none transition-all placeholder-slate-300 shadow-sm"
                           placeholder="Email Address"
                           value={loginData.email}
                           onChange={e => setLoginData({...loginData, email: e.target.value})}
@@ -288,14 +287,14 @@ function AuthContent() {
 
                     <div className="space-y-2">
                       <div className="flex justify-between items-center ml-1">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Password</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Password</label>
                       </div>
                       <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                         <input
                           type={showLoginPass ? "text" : "password"}
                           required
-                          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-12 py-4 text-white text-sm focus:border-brand-orange/30 focus:bg-white/[0.05] outline-none transition-all placeholder-slate-700"
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-12 py-4 text-slate-900 text-sm focus:border-brand-orange/30 focus:bg-white outline-none transition-all placeholder-slate-300 shadow-sm"
                           placeholder="••••••••"
                           value={loginData.password}
                           onChange={e => setLoginData({...loginData, password: e.target.value})}
@@ -303,7 +302,7 @@ function AuthContent() {
                         <button
                           type="button"
                           onClick={() => setShowLoginPass(!showLoginPass)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                         >
                           {showLoginPass ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -311,20 +310,20 @@ function AuthContent() {
                     </div>
                   </div>
 
-                  <Button type="submit" isLoading={loading} className="w-full h-14 bg-brand-orange hover:bg-white hover:text-slate-950 text-white font-black tracking-[0.2em] uppercase text-xs rounded-2xl shadow-xl shadow-brand-orange/10 transition-all active:scale-[0.98]">
+                  <Button type="submit" isLoading={loading} className="w-full h-14 bg-brand-orange hover:bg-slate-900 text-white font-black tracking-[0.2em] uppercase text-xs rounded-2xl shadow-xl shadow-brand-orange/20 transition-all active:scale-[0.98]">
                     Authorize Access
                   </Button>
 
                   <div className="flex items-center gap-4 py-2">
-                    <div className="h-px flex-1 bg-white/5" />
-                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Or Secure Entry</span>
-                    <div className="h-px flex-1 bg-white/5" />
+                    <div className="h-px flex-1 bg-slate-100" />
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Or Secure Entry</span>
+                    <div className="h-px flex-1 bg-slate-100" />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => signIn('google', { callbackUrl: '/profile/complete' })}
-                    className="w-full flex items-center justify-center gap-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] transition-all group"
+                    className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-900 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] transition-all group shadow-sm hover:bg-slate-50"
                   >
                     <img src="https://www.google.com/favicon.ico" alt="G" className="w-4 h-4 grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all" />
                     Continue with Google
@@ -338,17 +337,17 @@ function AuthContent() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.98, y: -10 }}
                 transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-                className="bg-white/[0.02] backdrop-blur-3xl border border-white/5 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden relative will-change-transform"
+                className="bg-white/70 backdrop-blur-3xl border border-white p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3.5rem] shadow-2xl overflow-hidden relative will-change-transform"
               >
-                <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/5 blur-3xl rounded-full" />
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/5 blur-3xl rounded-full" />
                 
                 <div className="text-center mb-8 relative z-10">
                   <div className="flex justify-center space-x-2 mb-8">
                     {[1, 2, 3].map((s) => (
-                      <div key={s} className={`h-1 rounded-full transition-all duration-500 ${signupStep === s ? 'bg-brand-orange w-12' : 'bg-white/10 w-6'}`} />
+                      <div key={s} className={`h-1 rounded-full transition-all duration-500 ${signupStep === s ? 'bg-brand-orange w-12' : 'bg-slate-200 w-6'}`} />
                     ))}
                   </div>
-                  <h2 className="text-3xl font-black text-white tracking-tight uppercase leading-none">
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase leading-none">
                     {signupStep === 1 ? 'Join Platform' : signupStep === 2 ? 'Chess Identity' : 'Account Audit'}
                   </h2>
                   <p className="text-slate-500 text-[10px] mt-3 font-black uppercase tracking-[0.2em] opacity-60">Step {signupStep} of 3</p>
@@ -362,13 +361,13 @@ function AuthContent() {
                       className="space-y-4"
                     >
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
                         <div className="relative group">
-                          <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                           <input
                             type="text"
                             required
-                            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-white text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-700"
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-300 shadow-sm"
                             placeholder="Full Legal Name"
                             value={signupData.name}
                             onChange={e => setSignupData({...signupData, name: e.target.value})}
@@ -376,13 +375,13 @@ function AuthContent() {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Mobile Contact</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Contact</label>
                         <div className="relative group">
-                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                           <input
                             type="tel"
                             required
-                            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-white text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-700"
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-300 shadow-sm"
                             placeholder="Phone Number"
                             value={signupData.phoneNumber}
                             onChange={e => setSignupData({...signupData, phoneNumber: e.target.value})}
@@ -390,13 +389,13 @@ function AuthContent() {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
                         <div className="relative group">
-                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                           <input
                             type="email"
                             required
-                            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-white text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-700"
+                            className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-300 shadow-sm"
                             placeholder="active@email.com"
                             value={signupData.email}
                             onChange={e => setSignupData({...signupData, email: e.target.value})}
@@ -404,16 +403,16 @@ function AuthContent() {
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Password</label>
                         <div className="relative group">
-                          <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${signupData.password && !isPasswordValid ? 'text-red-500' : 'text-slate-600 group-focus-within:text-brand-orange'}`} />
+                          <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${signupData.password && !isPasswordValid ? 'text-red-500' : 'text-slate-400 group-focus-within:text-brand-orange'}`} />
                           <input
                             type={showSignupPass ? "text" : "password"}
                             required
-                            className={`w-full bg-white/[0.03] border rounded-2xl pl-12 pr-12 py-4 text-white text-sm outline-none transition-all placeholder-slate-700 ${
+                            className={`w-full bg-slate-50/50 border rounded-2xl pl-12 pr-12 py-4 text-slate-900 text-sm outline-none transition-all placeholder-slate-300 shadow-sm ${
                                 signupData.password && !isPasswordValid 
                                 ? 'border-red-500/30' 
-                                : 'border-white/5 focus:border-brand-orange/30'
+                                : 'border-slate-200 focus:border-brand-orange/30'
                             }`}
                             placeholder="Min. 6 characters"
                             value={signupData.password}
@@ -422,25 +421,25 @@ function AuthContent() {
                           <button
                             type="button"
                             onClick={() => setShowSignupPass(!showSignupPass)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                           >
                             {showSignupPass ? <EyeOff size={18} /> : <Eye size={18} />}
                           </button>
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Confirm Security Key</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirm Security Key</label>
                         <div className="relative group">
-                          <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${isPasswordMismatch ? 'text-red-500' : isPasswordMatch && isPasswordValid ? 'text-green-500' : 'text-slate-600 group-focus-within:text-brand-orange'}`} />
+                          <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${isPasswordMismatch ? 'text-red-500' : isPasswordMatch && isPasswordValid ? 'text-emerald-500' : 'text-slate-400 group-focus-within:text-brand-orange'}`} />
                           <input
                             type={showConfirmPass ? "text" : "password"}
                             required
-                            className={`w-full bg-white/[0.03] border rounded-2xl pl-12 pr-12 py-4 text-white text-sm outline-none transition-all placeholder-slate-700 ${
+                            className={`w-full bg-slate-50/50 border rounded-2xl pl-12 pr-12 py-4 text-slate-900 text-sm outline-none transition-all placeholder-slate-300 shadow-sm ${
                                 isPasswordMismatch 
                                 ? 'border-red-500/30' 
                                 : isPasswordMatch && isPasswordValid
-                                ? 'border-green-500/20'
-                                : 'border-white/5 focus:border-brand-orange/30'
+                                ? 'border-emerald-500/20'
+                                : 'border-slate-200 focus:border-brand-orange/30'
                             }`}
                             placeholder="Repeat password"
                             value={signupData.confirmPassword}
@@ -449,7 +448,7 @@ function AuthContent() {
                           <button
                             type="button"
                             onClick={() => setShowConfirmPass(!showConfirmPass)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-400 transition-colors"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                           >
                             {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
                           </button>
@@ -460,15 +459,15 @@ function AuthContent() {
                       </Button>
 
                       <div className="flex items-center gap-4 py-2">
-                        <div className="h-px flex-1 bg-white/5" />
-                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Or Secure Entry</span>
-                        <div className="h-px flex-1 bg-white/5" />
+                        <div className="h-px flex-1 bg-slate-100" />
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Or Secure Entry</span>
+                        <div className="h-px flex-1 bg-slate-100" />
                       </div>
 
                       <button
                         type="button"
                         onClick={() => signIn('google', { callbackUrl: '/profile/complete' })}
-                        className="w-full flex items-center justify-center gap-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] transition-all group"
+                        className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-900 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.1em] transition-all group shadow-sm hover:bg-slate-50"
                       >
                         <img src="https://www.google.com/favicon.ico" alt="G" className="w-4 h-4 grayscale group-hover:grayscale-0 opacity-60 group-hover:opacity-100 transition-all" />
                         Google Sign-up
@@ -483,7 +482,7 @@ function AuthContent() {
                       className="space-y-6"
                     >
                       <div className="space-y-3">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Select Chess Platform</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Chess Platform</label>
                         <div className="grid grid-cols-2 gap-3">
                           {Object.values(ChessPlatform).map(p => (
                             <button
@@ -493,7 +492,7 @@ function AuthContent() {
                               className={`py-4 rounded-2xl border transition-all font-black text-[10px] uppercase tracking-widest ${
                                 signupData.platform === p 
                                   ? 'bg-brand-orange/10 border-brand-orange/40 text-brand-orange shadow-lg shadow-brand-orange/5' 
-                                  : 'bg-white/[0.03] border-white/5 text-slate-500 hover:border-white/10'
+                                  : 'bg-slate-50/50 border-slate-200 text-slate-400 hover:border-slate-300'
                               }`}
                             >
                               {p}
@@ -503,13 +502,13 @@ function AuthContent() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">In-Game Username</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">In-Game Username</label>
                         <div className="flex gap-2">
                           <div className="relative flex-1 group">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600 group-focus-within:text-brand-orange transition-colors" />
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-brand-orange transition-colors" />
                             <input
                               type="text"
-                              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-12 pr-4 py-4 text-white text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-700"
+                              className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 text-sm focus:border-brand-orange/30 outline-none transition-all placeholder-slate-300 shadow-sm"
                               placeholder="Platform ID"
                               value={signupData.chessUsername}
                               onChange={e => setSignupData({...signupData, chessUsername: e.target.value, rating: null})}
@@ -519,7 +518,7 @@ function AuthContent() {
                             type="button"
                             onClick={handleVerifyChess}
                             disabled={verifying || !signupData.chessUsername}
-                            className="bg-brand-orange text-white px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[64px] active:scale-95"
+                            className="bg-brand-orange text-white px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[64px] active:scale-95 shadow-lg shadow-brand-orange/20"
                           >
                             {verifying ? <Loader2 className="animate-spin h-5 w-5" /> : <Search className="h-5 w-5" />}
                           </button>
@@ -531,12 +530,12 @@ function AuthContent() {
                           <motion.div 
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-5 flex items-center gap-4"
+                            className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm"
                           >
                             <Trophy className="h-6 w-6 text-emerald-500 shrink-0" />
                             <div className="flex-1">
-                              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Account Verified</p>
-                              <p className="text-2xl font-black text-white">{signupData.rating} <span className="text-xs text-slate-500 font-bold tracking-normal">ELO</span></p>
+                              <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Account Verified</p>
+                              <p className="text-2xl font-black text-slate-900">{signupData.rating} <span className="text-xs text-slate-400 font-bold tracking-normal">ELO</span></p>
                             </div>
                             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
                           </motion.div>
@@ -547,7 +546,7 @@ function AuthContent() {
                         <button 
                           type="button" 
                           onClick={() => setSignupStep(1)} 
-                          className="w-1/3 h-14 rounded-2xl border border-white/10 bg-white/[0.03] text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-white/[0.08] transition-all"
+                          className="w-1/3 h-14 rounded-2xl border border-slate-200 bg-slate-50 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all shadow-sm"
                         >
                           Back
                         </button>
@@ -556,7 +555,7 @@ function AuthContent() {
                           onClick={handleTriggerOTP}
                           isLoading={isSendingOtp}
                           disabled={!signupData.rating} 
-                          className="flex-1 h-14 bg-brand-orange text-white rounded-2xl uppercase font-black text-xs tracking-widest active:scale-95"
+                          className="flex-1 h-14 bg-brand-orange text-white rounded-2xl uppercase font-black text-xs tracking-widest active:scale-95 shadow-lg shadow-brand-orange/20"
                         >
                           Final Audit <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
@@ -574,17 +573,17 @@ function AuthContent() {
                         <KeyRound className="text-brand-orange h-10 w-10" />
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-black text-white uppercase tracking-tight leading-none">Identity Check</h3>
-                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">System sent a code to <br/><span className="text-white">{signupData.email}</span></p>
+                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">Identity Check</h3>
+                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest leading-relaxed">System sent a code to <br/><span className="text-slate-900">{signupData.email}</span></p>
                       </div>
 
                       <div className="space-y-3 text-left">
-                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">OTP Access Code</label>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">OTP Access Code</label>
                         <input
                           type="text"
                           required
                           maxLength={6}
-                          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-5 text-center text-3xl font-black tracking-[0.5em] text-white focus:border-brand-orange/30 outline-none transition-all placeholder-slate-800"
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl py-5 text-center text-3xl font-black tracking-[0.5em] text-slate-900 focus:border-brand-orange/30 outline-none transition-all placeholder-slate-200 shadow-sm"
                           placeholder="000000"
                           value={otp}
                           onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
@@ -595,7 +594,7 @@ function AuthContent() {
                         <button 
                           type="button" 
                           onClick={() => setSignupStep(2)} 
-                          className="w-1/3 h-14 rounded-2xl border border-white/10 bg-white/[0.03] text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-white/[0.08] transition-all"
+                          className="w-1/3 h-14 rounded-2xl border border-slate-200 bg-slate-50 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all shadow-sm"
                         >
                           Change
                         </button>
@@ -613,7 +612,7 @@ function AuthContent() {
                         type="button" 
                         onClick={handleTriggerOTP}
                         disabled={isSendingOtp}
-                        className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] hover:text-brand-orange transition-colors disabled:opacity-50"
+                        className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-brand-orange transition-colors disabled:opacity-50"
                       >
                         {isSendingOtp ? 'SENDING...' : "Request new code"}
                       </button>
@@ -631,7 +630,7 @@ function AuthContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-brand-orange h-12 w-12" /></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><Loader2 className="animate-spin text-brand-orange h-12 w-12" /></div>}>
       <AuthContent />
     </Suspense>
   );
