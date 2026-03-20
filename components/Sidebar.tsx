@@ -8,7 +8,8 @@ import {
   BookOpen, 
   HeartHandshake, 
   LogOut, 
-  Newspaper
+  Newspaper,
+  X as CloseIcon
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { motion } from "framer-motion";
@@ -34,12 +35,12 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     <>
       {/* Sidebar Container */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white/70 backdrop-blur-2xl border-r border-slate-200/50 text-slate-900 transform transition-all duration-300 ease-in-out md:translate-x-0 ${
-          isOpen ? "translate-x-0 shadow-2xl shadow-slate-200" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white/80 backdrop-blur-2xl border-r border-slate-200/50 text-slate-900 transform transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] md:translate-x-0 ${
+          isOpen ? "translate-x-0 shadow-2xl shadow-slate-900/20" : "-translate-x-full"
         }`}
       >
-        <div className="flex flex-col h-full p-6">
-          <div className="mb-10 px-2 py-4">
+        <div className="flex flex-col h-full p-6 pt-10">
+          <div className="mb-10 px-2">
             {session?.user ? (
               <Link 
                 href="/profile" 
@@ -50,14 +51,14 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                   {session.user.name?.[0] || 'U'}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-lg font-black text-slate-900 truncate uppercase tracking-tight leading-none group-hover:text-brand-orange transition-colors">
+                  <p className="text-lg font-black text-slate-900 truncate tracking-tight leading-none group-hover:text-brand-orange transition-colors">
                     {session.user.name}
                   </p>
                   <div className="flex items-center gap-2 mt-1.5">
                     {/* @ts-ignore */}
                     {session.user.siteRating !== undefined && (
-                      <span className="px-2 py-0.5 bg-brand-orange/10 rounded-md text-[9px] font-black text-brand-orange uppercase tracking-widest border border-brand-orange/20">
-                        ELO {(session.user as any).siteRating ? Math.round((session.user as any).siteRating) : 1500}
+                      <span className="px-2 py-0.5 bg-brand-orange/10 rounded-md text-[9px] font-black text-brand-orange border border-brand-orange/20">
+                        ELO {Math.round((session.user as any).siteRating || 1500)}
                         {(session.user as any).gamesPlayed < 8 && '?'}
                       </span>
                     )}
@@ -65,12 +66,16 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 </div>
               </Link>
             ) : (
-              <div className="h-14" />
+              <div className="p-4 rounded-3xl bg-slate-50 border border-slate-100">
+                <span className="text-xl font-black tracking-tighter text-slate-900">
+                  MARLIMA<span className="text-brand-orange">CHESS</span>
+                </span>
+                <p className="text-[8px] font-black text-slate-400 mt-1">Guest Session</p>
+              </div>
             )}
           </div>
 
           <nav className="flex-1 space-y-2">
-            <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Command Center</p>
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -111,7 +116,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               <Link
                 href="/login"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center justify-center w-full gap-2 px-4 py-4 bg-slate-900 text-white font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-brand-orange transition-all duration-300 shadow-lg"
+                className="flex items-center justify-center w-full gap-2 px-4 py-4 bg-slate-900 text-white font-black text-xs rounded-2xl hover:bg-brand-orange transition-all duration-300 shadow-lg"
               >
                 <span>Initialize Profile</span>
               </Link>
@@ -123,7 +128,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-[45] bg-slate-900/20 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-[45] bg-slate-900/40 backdrop-blur-sm md:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}

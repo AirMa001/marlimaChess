@@ -67,15 +67,15 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
           />
           <button
             onClick={() => setActiveTab('tournaments')}
-            className={`relative z-10 flex-1 py-3 text-[10px] font-black tracking-widest transition-colors flex items-center justify-center gap-2 ${activeTab === 'tournaments' ? 'text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`relative z-10 flex-1 py-3 text-[10px] font-black transition-colors flex items-center justify-center gap-2 ${activeTab === 'tournaments' ? 'text-white' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Swords size={14} className="hidden xs:block" /> TOURNAMENTS
+            <Swords size={14} className="hidden xs:block" /> Tournaments
           </button>
           <button
             onClick={() => setActiveTab('news')}
-            className={`relative z-10 flex-1 py-3 text-[10px] font-black tracking-widest transition-colors flex items-center justify-center gap-2 ${activeTab === 'news' ? 'text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`relative z-10 flex-1 py-3 text-[10px] font-black transition-colors flex items-center justify-center gap-2 ${activeTab === 'news' ? 'text-white' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Newspaper size={14} className="hidden xs:block" /> NEWS
+            <Newspaper size={14} className="hidden xs:block" /> News
           </button>
         </div>
       </div>
@@ -98,19 +98,19 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Trophy className="text-brand-orange h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="text-brand-orange font-black tracking-[0.2em] sm:tracking-[0.3em] text-[9px] sm:text-[10px] uppercase">Upcoming</span>
+                    <span className="text-brand-orange font-black text-[9px] sm:text-[10px]">Upcoming</span>
                   </div>
-                  <h2 className="text-xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight">Active Events</h2>
+                  <h2 className="text-xl sm:text-4xl font-black text-slate-900 tracking-tight">Active Events</h2>
                 </div>
                 <Link href="/tournaments" className="group text-slate-400 hover:text-slate-900 transition-colors font-black text-[9px] sm:text-[10px] tracking-widest flex items-center gap-2 mb-1 shrink-0">
-                  VIEW ALL <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                  View All <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
 
               {initialTournaments.length === 0 ? (
                 <div className="p-10 sm:p-16 text-center border border-white bg-white/70 backdrop-blur-xl rounded-[2.5rem] sm:rounded-[3rem] shadow-xl">
                   <Trophy className="h-10 w-10 sm:h-12 sm:w-12 text-slate-200 mx-auto mb-4" />
-                  <p className="text-slate-400 font-black uppercase text-[9px] sm:text-[10px] tracking-widest">No active tournaments scheduled</p>
+                  <p className="text-slate-400 font-black text-[9px] sm:text-[10px]">No active tournaments scheduled</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -130,18 +130,18 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                       )}
 
                       <div className="flex justify-between items-start mb-6 sm:mb-8 relative z-20">
-                        <span className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-brand-orange/10 bg-brand-orange/5 text-brand-orange text-[8px] sm:text-[9px] font-black tracking-[0.2em] uppercase">
+                        <span className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-brand-orange/10 bg-brand-orange/5 text-brand-orange text-[8px] sm:text-[9px] font-black">
                           {t.status}
                         </span>
                         <Trophy size={18} className="text-brand-orange/30 group-hover:text-brand-orange transition-colors" />
                       </div>
                       
-                      <h3 className="text-lg sm:text-2xl font-black text-slate-900 mb-3 group-hover:text-brand-orange transition-colors line-clamp-2 uppercase tracking-tight relative z-20 leading-none">
+                      <h3 className="text-lg sm:text-2xl font-black text-slate-900 mb-3 group-hover:text-brand-orange transition-colors line-clamp-2 tracking-tight relative z-20 leading-none">
                         {t.name}
                       </h3>
 
                       {t.organizer?.name && (
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-6 sm:mb-8 relative z-20">
+                        <p className="text-[8px] font-black text-slate-400 mb-6 sm:mb-8 relative z-20">
                           Authorized By <span className="text-slate-600">{t.organizer.name}</span>
                         </p>
                       )}
@@ -154,7 +154,7 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                       </div>
 
                       <div className="relative z-20">
-                        <Button className="w-full py-3 sm:py-4 bg-brand-orange text-white rounded-2xl transition-all duration-300 font-black text-[9px] sm:text-[10px] tracking-[0.2em] uppercase shadow-lg shadow-brand-orange/20 border-none">
+                        <Button className="w-full py-3 sm:py-4 bg-brand-orange text-white rounded-2xl transition-all duration-300 font-black text-[9px] sm:text-[10px] border-none shadow-lg shadow-brand-orange/20">
                           View Details
                         </Button>
                       </div>
@@ -178,12 +178,12 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Newspaper className="text-blue-600 h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="text-blue-600 font-black tracking-[0.2em] sm:tracking-[0.3em] text-[9px] sm:text-[10px] uppercase">Intelligence</span>
+                    <span className="text-blue-600 font-black text-[9px] sm:text-[10px]">Intelligence</span>
                   </div>
-                  <h2 className="text-xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight">Chess Updates</h2>
+                  <h2 className="text-xl sm:text-4xl font-black text-slate-900 tracking-tight">Chess Updates</h2>
                 </div>
                 <Link href="/news" className="group text-slate-400 hover:text-slate-900 transition-colors font-black text-[9px] sm:text-[10px] tracking-widest flex items-center gap-2 mb-1 shrink-0">
-                  VIEW ALL <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                  View All <ChevronRight size={12} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
 
@@ -205,7 +205,7 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-4 mb-3 sm:mb-4">
-                    <h3 className="font-black text-lg sm:text-xl text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight uppercase tracking-tight">
+                    <h3 className="font-black text-lg sm:text-xl text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight tracking-tight">
                       {item.title}
                     </h3>
                     <div className="p-2 sm:p-3 bg-blue-50 rounded-xl group-hover:bg-blue-100 text-blue-600 transition-all shrink-0 border border-blue-100/50">
@@ -217,7 +217,7 @@ export default function HomeClient({ initialTournaments, initialNews, isLoggedIn
                   </div>
                 </div>
               </div>
-                    <div className="flex items-center justify-between text-[8px] sm:text-[9px] font-black tracking-widest uppercase mt-auto pt-6 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-[8px] sm:text-[9px] font-black mt-auto pt-6 border-t border-slate-100">
                       <span className="text-brand-orange bg-brand-orange/5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg border border-brand-orange/10 shrink-0">{item.source}</span>
                       <span className="text-slate-400 ml-4 truncate">{new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>

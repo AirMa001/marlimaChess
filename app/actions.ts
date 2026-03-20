@@ -5,11 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redis } from '@/lib/redis';
 import cloudinary from '@/lib/cloudinary';
-import { rankingManager } from '@/lib/glicko';
-import Manager from 'tournament-organizer';
+import { Tournament, Match, Manager } from 'tournament-organizer/components';
 import crypto from 'crypto';
-// @ts-ignore
-import { Player as GlickoPlayer } from 'glicko2.ts';
 
 function safeRevalidatePath(path: string, type?: 'layout' | 'page') {
   try {
@@ -23,98 +20,96 @@ export async function getTournamentEngine(tournamentId: number) {
 
   const players = await prisma.player.findMany({ 
     where: { tournamentId, status: RegistrationStatus.APPROVED },
-    orderBy: { registeredAt: 'asc' }
+    orderBy: [
+      { rank: 'asc' },
+      { rating: 'desc' },
+      { fullName: 'asc' }
+    ]
   });
   
   const matches = await prisma.match.findMany({ 
-    where: { whitePlayer: { tournamentId }, result: { not: null } },
+    where: { 
+      OR: [
+        { whitePlayer: { tournamentId } },
+        { blackPlayer: { tournamentId } }
+      ]
+    },
     orderBy: { round: 'asc' } 
   });
 
-  const manager = new Manager();
-  const t = manager.createTournament(tInfo.name || "Tournament", {
+  console.log(`🔍 [Engine] DB Query returned ${matches.length} matches for Tournament ${tournamentId}`);
+
+  // Create tournament manually
+  const t = new Tournament(tInfo.id.toString(), tInfo.name || "Tournament");
+  
+  t.set({
     stageOne: { format: 'swiss', rounds: tInfo.totalRounds || 5 },
     sorting: 'none',
-    scoring: { win: 1, draw: 0.5, loss: 0, tiebreaks: ['solkoff', 'median buchholz', 'sonneborn berger'] }
+    seating: true, // Rule 3: Color Fairness
+    scoring: { 
+      win: 1, 
+      draw: 0.5, 
+      loss: 0, 
+      // @ts-ignore
+      bye: 0.5, // Rule 1: Bye Points
+      tiebreaks: ['solkoff', 'median buchholz', 'sonneborn berger'] 
+    }
   });
 
+  // 1. Hydrate Players
   for (const p of players) {
     t.createPlayer(p.fullName, p.id);
   }
 
-  if (players.length < 2) return { t, tInfo };
-  t.startTournament();
+  // 2. Hydrate Matches Manually
+  if (matches.length > 0) {
+    t.set({ status: 'stage-one', round: tInfo.currentRound });
+    
+    for (const dbm of matches) {
+      const p1 = t.getPlayer(dbm.whitePlayerId);
+      if (!p1) continue;
 
-  const maxRound = matches.reduce((max, m) => Math.max(max, m.round), 0);
-  
-  for (let r = 1; r <= maxRound; r++) {
-    const roundMatches = matches.filter(m => m.round === r);
-    const activeEngineMatches = t.getActiveMatches();
-    
-    const usedEngineMatches = new Set<string>();
-    
-    // Replay DB state to engine
-    for (let i = 0; i < roundMatches.length; i++) {
-      const dbm = roundMatches[i];
+      const em = new Match(dbm.id, dbm.round, dbm.table || 0);
+      
       if (!dbm.blackPlayerId) {
-         // 🧹 CLEAR PLAYER FROM ENGINE-GENERATED MATCHES FOR THIS ROUND FIRST
-         const existingMatch = activeEngineMatches.find(m => 
-            !usedEngineMatches.has(m.getId()) &&
-            (m.getPlayer1()?.id === dbm.whitePlayerId || m.getPlayer2()?.id === dbm.whitePlayerId)
-         );
-         if (existingMatch) {
-            const op1Id = existingMatch.getPlayer1().id;
-            const op2Id = existingMatch.getPlayer2().id;
-            if (op1Id) try { t.getPlayer(op1Id).removeMatch(existingMatch.getId()); } catch(e){}
-            if (op2Id) try { t.getPlayer(op2Id).removeMatch(existingMatch.getId()); } catch(e){}
-            usedEngineMatches.add(existingMatch.getId());
-         }
+        // Rule 1: Bye Points (0.5 pts)
+        let p1Wins = 0, draws = 0;
+        if (dbm.result === '1-0') p1Wins = 1;
+        else if (dbm.result === '1/2-1/2') draws = 1;
+        else draws = 1; // Default to 0.5
 
-         try { t.assignBye(dbm.whitePlayerId, r); } catch(e){}
-         continue;
-      }
-      
-      let em = activeEngineMatches.find(m => 
-        !usedEngineMatches.has(m.getId()) && 
-        (m.getPlayer1()?.id === dbm.whitePlayerId || m.getPlayer2()?.id === dbm.whitePlayerId)
-      );
-      if (!em) {
-         em = activeEngineMatches.find(m => !usedEngineMatches.has(m.getId()) && !m.hasEnded());
-      }
-      
-      if (em) {
-         usedEngineMatches.add(em.getId());
-         const p1 = t.getPlayer(dbm.whitePlayerId);
-         const p2 = t.getPlayer(dbm.blackPlayerId);
-         if (p1 && p2) {
-             // ♟️ SYNC ENGINE PLAYER LINKS ♟️
-             // Remove match from whoever the engine thought was playing
-             const oldP1Id = em.getPlayer1().id;
-             const oldP2Id = em.getPlayer2().id;
-             if (oldP1Id && oldP1Id !== p1.getId()) try { t.getPlayer(oldP1Id).removeMatch(em.getId()); } catch(e){}
-             if (oldP2Id && oldP2Id !== p2.getId()) try { t.getPlayer(oldP2Id).removeMatch(em.getId()); } catch(e){}
+        em.set({
+          bye: true,
+          active: false,
+          player1: { id: dbm.whitePlayerId, win: p1Wins, draw: draws },
+          player2: { id: null }
+        });
+        p1.addMatch({ id: em.getId(), opponent: null, bye: true, win: p1Wins, draw: draws });
+      } else {
+        const p2 = t.getPlayer(dbm.blackPlayerId);
+        if (!p2) continue;
 
-             // Assign ACTUAL players
-             em.set({ player1: p1.getValues(), player2: p2.getValues() });
-             
-             // Ensure players know they are in this match
-             if (!p1.getMatches().some((m: any) => m.id === em.getId())) {
-                try { p1.addMatch({ id: em.getId(), opponent: p2.getId() }); } catch(e){}
-             }
-             if (!p2.getMatches().some((m: any) => m.id === em.getId())) {
-                try { p2.addMatch({ id: em.getId(), opponent: p1.getId() }); } catch(e){}
-             }
+        let p1Wins = 0, p2Wins = 0, draws = 0;
+        if (dbm.result === '1-0') p1Wins = 1;
+        else if (dbm.result === '0-1') p2Wins = 1;
+        else if (dbm.result === '1/2-1/2') draws = 1;
 
-             if (dbm.result === '1-0') t.enterResult(em.getId(), 1, 0);
-             else if (dbm.result === '0-1') t.enterResult(em.getId(), 0, 1);
-             else if (dbm.result === '1/2-1/2') t.enterResult(em.getId(), 0, 0, 1);
-         }
+        em.set({
+          active: !dbm.result,
+          player1: { id: dbm.whitePlayerId, win: p1Wins, loss: p2Wins, draw: draws },
+          player2: { id: dbm.blackPlayerId, win: p2Wins, loss: p1Wins, draw: draws }
+        });
+
+        // Rule 3: Seating 1 (White) and -1 (Black)
+        p1.addMatch({ id: em.getId(), opponent: p2.getId(), win: p1Wins, loss: p2Wins, draw: draws, seating: 1 });
+        p2.addMatch({ id: em.getId(), opponent: p1.getId(), win: p2Wins, loss: p1Wins, draw: draws, seating: -1 });
       }
+
+      // @ts-ignore
+      t.matches.push(em);
     }
-    
-    if (r < maxRound) {
-       t.nextRound();
-    }
+  } else if (tInfo.status !== 'UPCOMING') {
+     t.set({ status: 'stage-one', round: 1 });
   }
 
   return { t, tInfo };
@@ -140,8 +135,7 @@ export async function getApprovedPlayersAction(tournamentId: number = 1) {
     where: { tournamentId, status: RegistrationStatus.APPROVED },
     orderBy: [
       { rank: 'asc' },
-      { score: 'desc' },
-      { rating: 'desc' }
+      { score: 'desc' }
     ],
   });
 }
@@ -257,14 +251,26 @@ export async function updateTournamentSettingsAction(tournamentId: number, total
 
 export async function advanceRoundAction(tournamentId: number) {
   try {
+    console.log(`🚀 [Pairings] Starting Generation for Tournament ${tournamentId}`);
     const { t, tInfo } = await getTournamentEngine(tournamentId);
-    if (!tInfo || tInfo.status === 'FINISHED') return tInfo;
+    
+    if (!tInfo) throw new Error("Tournament metadata not found");
+    if (tInfo.status === 'FINISHED') {
+      console.warn("   ⚠️ Cannot advance: Tournament is already FINISHED");
+      return tInfo;
+    }
 
     const currentRound = Number(tInfo.currentRound);
-    const nextRound = currentRound + 1;
+    let nextRound;
+    if (tInfo.status === 'UPCOMING') {
+      nextRound = 1;
+    } else {
+      nextRound = currentRound + 1;
+    }
 
     // Check if we reached the end
     if (nextRound > (tInfo.totalRounds || 5)) {
+      console.log("   🏁 Reached max rounds. Finishing tournament...");
       await prisma.tournament.update({
         where: { id: tournamentId },
         data: { status: 'FINISHED' }
@@ -273,47 +279,117 @@ export async function advanceRoundAction(tournamentId: number) {
       return { ...tInfo, status: 'FINISHED' };
     }
 
-    if (nextRound > 1) {
-      t.nextRound(); // Generates new pairings for next round
-    }
-    
-    const matchesToCreate = [];
-    const activeMatches = t.getActiveMatches();
-    let table = 1;
+    // Rule 1: Bye Assignment Logic (Odd number of players)
+    const activePlayers = t.getActivePlayers();
+    let byeRecipient: any = null;
+    if (activePlayers.length % 2 !== 0) {
+      const standings = t.getStandings();
+      // Identify lowest-ranked eligible player (no previous bye)
+      byeRecipient = [...standings].reverse().find(s => {
+        const p = s.player;
+        return !p.getMatches().some((m: any) => m.bye === true);
+      });
 
-    // Delete existing rounds to prevent duplicates
-    await prisma.match.deleteMany({
-      where: { round: { equals: nextRound }, whitePlayer: { tournamentId } }
+      if (byeRecipient) {
+        console.log(`🎯 Manual Bye assigned to ${byeRecipient.player.getName()} (Lowest eligible)`);
+        // Force the engine to skip this player during pairing
+        byeRecipient.player.set({ active: false });
+      }
+    }
+
+    // Trigger Pairing Engine
+    if (nextRound === 1) {
+      t.startTournament();
+    } else {
+      t.nextRound();
+    }
+
+    // Re-activate bye recipient and manually assign the Bye
+    if (byeRecipient) {
+      byeRecipient.player.set({ active: true });
+      t.assignBye(byeRecipient.player.getId(), nextRound);
+    }
+
+    const allRoundMatches = t.getMatchesByRound(nextRound);
+    const standingsForPts = t.getStandings();
+    const playerPointsMap = new Map();
+    standingsForPts.forEach((s: any) => {
+      const pts = s.matchPoints ?? s.points ?? s.score ?? 0;
+      playerPointsMap.set(s.player.getId(), pts);
     });
 
-    for (const m of activeMatches) {
-       if (m.isBye()) {
-          const p1 = m.getPlayer1();
-          if (p1) {
-            matchesToCreate.push({
-              id: crypto.randomUUID(),
-              whitePlayerId: p1.id as string,
-              blackPlayerId: null,
-              round: nextRound,
-              table: 999,
-              result: '1/2-1/2' 
-            });
-          }
-       } else {
-          const p1 = m.getPlayer1();
-          const p2 = m.getPlayer2();
-          if (p1 && p2) {
-             matchesToCreate.push({
-               id: crypto.randomUUID(),
-               whitePlayerId: p1.id as string,
-               blackPlayerId: p2.id as string,
-               round: nextRound,
-               table: table++,
-               result: null
-             });
-          }
-       }
+    const nonByeMatches = allRoundMatches.filter(m => !m.isBye());
+    const byeMatch = allRoundMatches.find(m => m.isBye());
+
+    const getPlayerPts = (pId: string | null) => pId ? (playerPointsMap.get(pId) || 0) : 0;
+
+    // Rule 2: Top Board Priority Sorting
+    // Primary: Max points of either player (desc); Secondary: Sum of points (desc)
+    nonByeMatches.sort((a, b) => {
+      const aP1Id = a.getPlayer1()?.id;
+      const aP2Id = a.getPlayer2()?.id;
+      const bP1Id = b.getPlayer1()?.id;
+      const bP2Id = b.getPlayer2()?.id;
+
+      const aP1Pts = getPlayerPts(aP1Id);
+      const aP2Pts = getPlayerPts(aP2Id);
+      const bP1Pts = getPlayerPts(bP1Id);
+      const bP2Pts = getPlayerPts(bP2Id);
+
+      const aMax = Math.max(aP1Pts, aP2Pts);
+      const bMax = Math.max(bP1Pts, bP2Pts);
+      if (bMax !== aMax) return bMax - aMax;
+
+      const aSum = aP1Pts + aP2Pts;
+      const bSum = bP1Pts + bP2Pts;
+      return bSum - aSum;
+    });
+
+    const matchesToCreate = [];
+    let table = 1;
+
+    // Process non-bye matches for top boards
+    for (const m of nonByeMatches) {
+      const p1 = t.getPlayer(m.getPlayer1().id!);
+      const p2 = t.getPlayer(m.getPlayer2().id!);
+      if (p1 && p2) {
+        const p1Pts = getPlayerPts(p1.getId());
+        const p2Pts = getPlayerPts(p2.getId());
+        // Rule 4: Board Logging
+        console.log(`⚔️ Board ${table} (${p1Pts} vs ${p2Pts}): ${p1.getName()} vs ${p2.getName()}`);
+        matchesToCreate.push({
+          id: crypto.randomUUID(),
+          whitePlayerId: p1.getId(),
+          blackPlayerId: p2.getId(),
+          round: nextRound,
+          table: table++,
+          result: null
+        });
+      }
     }
+
+    // Rule 2: Bye match on the absolute last board
+    if (byeMatch) {
+      const p1 = t.getPlayer(byeMatch.getPlayer1().id!);
+      if (p1) {
+        const p1Pts = getPlayerPts(p1.getId());
+        // Rule 4: Board Logging (for Bye)
+        console.log(`⚔️ Board ${table} (${p1Pts} vs 0): ${p1.getName()} vs BYE`);
+        matchesToCreate.push({
+          id: crypto.randomUUID(),
+          whitePlayerId: p1.getId(),
+          blackPlayerId: null,
+          round: nextRound,
+          table: table++,
+          result: '1/2-1/2' // Rule 1: Bye = Draw (0.5 pts)
+        });
+      }
+    }
+
+    console.log(`   🧹 Clearing RD ${nextRound} records...`);
+    await prisma.match.deleteMany({
+      where: { round: nextRound, whitePlayer: { tournamentId } }
+    });
 
     if (matchesToCreate.length > 0) {
       await prisma.match.createMany({ data: matchesToCreate });
@@ -325,8 +401,10 @@ export async function advanceRoundAction(tournamentId: number) {
     });
 
     await recalculateStandingsAction(tournamentId);
+    console.log(`✅ [Pairings] Round ${nextRound} successfully deployed.`);
     return updated;
   } catch (error: any) {
+    console.error(`❌ [Pairings] Critical Failure:`, error.message);
     throw new Error(error.message || "Failed to advance round");
   }
 }
@@ -399,60 +477,41 @@ export async function recalculateStandingsAction(tournamentId: number) {
     if (!t) return;
     
     const standings = t.getStandings();
-    const playerUpdates = standings.map((s, i) => 
-      prisma.player.update({
-        where: { id: s.player.getId() },
-        data: { 
-          score: s.matchPoints || 0,
-          rank: i + 1
-        }
-      })
-    );
+    console.log(`📊 [Standings] Recalculating for Tournament ${tournamentId}. Players: ${standings.length}`);
 
-    // Glicko updates
-    const matches = await prisma.match.findMany({
-      where: { whitePlayer: { tournamentId }, result: { not: null } },
-      include: { whitePlayer: { include: { user: true } }, blackPlayer: { include: { user: true } } }
+    const playerUpdates = standings.map((s, i) => {
+      // @ts-ignore
+      const matchPoints = s.matchPoints ?? s.points ?? s.score ?? 0;
+      console.log(`   👤 ${s.player.getName()}: ${matchPoints} pts (Rank ${i + 1})`);
+      
+      const updateData: any = {
+        score: matchPoints,
+        rank: i + 1,
+      };
+
+      // @ts-ignore
+      if (s.tiebreaks) {
+        updateData.buc1 = s.tiebreaks.medianBuchholz || 0;
+        updateData.bucT = s.tiebreaks.solkoff || 0;
+      }
+
+      return prisma.player.update({
+        where: { id: s.player.getId() },
+        data: updateData
+      }).catch(err => {
+        console.error(`❌ [Standings] Failed to update player ${s.player.getId()}:`, err.message);
+        return prisma.player.update({
+          where: { id: s.player.getId() },
+          data: { score: matchPoints, rank: i + 1 }
+        });
+      });
     });
 
-    const glickoMatches: any[] = [];
-    const glickoPlayersMap = new Map();
-    const usersToUpdate = new Set();
-
-    for (const match of matches) {
-        if (!match.whitePlayer?.user || !match.blackPlayer?.user) continue;
-        const whiteUser = match.whitePlayer.user;
-        const blackUser = match.blackPlayer.user;
-        
-        if (!glickoPlayersMap.has(whiteUser.id)) glickoPlayersMap.set(whiteUser.id, rankingManager.makePlayer(whiteUser.siteRating, whiteUser.ratingDeviation, whiteUser.volatility));
-        if (!glickoPlayersMap.has(blackUser.id)) glickoPlayersMap.set(blackUser.id, rankingManager.makePlayer(blackUser.siteRating, blackUser.ratingDeviation, blackUser.volatility));
-        
-        let score = 0.5;
-        if (match.result === '1-0') score = 1;
-        else if (match.result === '0-1') score = 0;
-        
-        glickoMatches.push([glickoPlayersMap.get(whiteUser.id), glickoPlayersMap.get(blackUser.id), score]);
-        usersToUpdate.add(whiteUser.id);
-        usersToUpdate.add(blackUser.id);
-    }
-    
-    const userRatingUpdates: any[] = [];
-    if (glickoMatches.length > 0) {
-        rankingManager.updateRatings(glickoMatches as any);
-        for (const userId of Array.from(usersToUpdate)) {
-          const gp = glickoPlayersMap.get(userId);
-          userRatingUpdates.push(
-            prisma.user.update({
-              where: { id: userId as string },
-              data: { siteRating: gp.getRating(), ratingDeviation: gp.getRd(), volatility: gp.getVol(), gamesPlayed: { increment: 1 } }
-            })
-          );
-        }
+    if (playerUpdates.length > 0) {
+      await Promise.all(playerUpdates);
+      console.log(`✅ [Standings] Saved ${playerUpdates.length} player updates.`);
     }
 
-    if (playerUpdates.length > 0 || userRatingUpdates.length > 0) {
-      await prisma.$transaction([...playerUpdates, ...userRatingUpdates]);
-    }
     await invalidateAllCache();
   } catch (error) {
      console.error(error);

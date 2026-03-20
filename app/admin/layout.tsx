@@ -117,62 +117,58 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#020617] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#020617] to-[#020617]">
       <div className="border-b border-white/5 bg-slate-900/40 backdrop-blur-xl sticky top-0 z-30 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center py-4 space-y-4 md:space-y-0">
-            <div className="flex items-center space-x-4">
-                <Link href={`/tournaments/${tid}`} className="p-2 bg-white/5 border border-white/10 text-slate-400 hover:text-white rounded-xl transition-all" title="Return to Arena">
-                    <ArrowLeft size={18} />
-                </Link>
-                <h1 className="text-xl font-black text-white flex items-center tracking-tight uppercase">
-                    <LayoutDashboard className="mr-2 h-5 w-5 text-brand-orange" />
-                    Admin Portal
-                </h1>
-                <nav className="hidden lg:flex space-x-1 bg-white/5 p-1 rounded-2xl border border-white/10">
-                    {navLinks.map(link => (
-                        <Link 
-                            key={link.href} 
-                            href={link.href}
-                            className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${pathname === link.href.split('?')[0] ? 'bg-brand-orange text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
-                </nav>
+          <div className="flex flex-col py-3 sm:py-4 gap-3 sm:gap-4">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-3">
+                  <Link href={`/tournaments/${tid}`} className="p-2 bg-white/5 border border-white/10 text-slate-400 hover:text-white rounded-xl transition-all" title="Return to Arena">
+                      <ArrowLeft size={18} />
+                  </Link>
+                  <div className="flex flex-col">
+                    <h1 className="text-base sm:text-xl font-black text-white flex items-center tracking-tight uppercase leading-none">
+                        Admin Portal
+                    </h1>
+                    <p className="text-[8px] sm:text-[9px] font-black text-brand-orange uppercase tracking-widest mt-1 opacity-80">Tournament Control</p>
+                  </div>
+              </div>
+              
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button 
+                      onClick={handlePurgeCache}
+                      className="p-2 sm:p-2.5 rounded-xl border border-white/10 text-red-400 hover:text-white hover:bg-red-500/20 transition-all bg-white/5"
+                      title="Purge Redis Cache"
+                  >
+                      <Trash2 className="h-4 w-4" />
+                  </button>
+                  <button 
+                      onClick={handleRefresh}
+                      disabled={isPending}
+                      className={`p-2 sm:p-2.5 rounded-xl border border-white/10 text-slate-400 hover:text-white transition-all bg-white/5 ${isPending ? 'bg-brand-orange/20 border-brand-orange/50' : ''}`}
+                      title="Sync Data"
+                  >
+                      <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin text-brand-orange' : ''}`} />
+                  </button>
+                  <Button variant="ghost" onClick={() => router.push('/api/auth/signout')} className="px-2.5 sm:px-3 border-white/10 text-slate-400 h-9 sm:h-10 rounded-xl hover:bg-red-500/10 hover:text-red-400">
+                      <LogOut className="h-4 w-4" />
+                  </Button>
+              </div>
             </div>
-            <div className="flex items-center justify-between md:justify-end space-x-4">
-                <div className="lg:hidden flex bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto max-w-[200px]">
-                    {navLinks.map(link => (
-                        <Link key={link.href} href={link.href} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider whitespace-nowrap ${pathname === link.href.split('?')[0] ? 'bg-brand-orange text-white' : 'text-slate-500'}`}>
-                            {link.label}
-                        </Link>
-                    ))}
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                    <button 
-                        onClick={handlePurgeCache}
-                        className="p-2.5 rounded-xl border border-white/10 text-red-400 hover:text-white hover:bg-red-500/20 transition-all bg-white/5"
-                        title="Purge Redis Cache"
+
+            <nav className="flex bg-white/5 p-1 rounded-xl sm:rounded-2xl border border-white/10 overflow-x-auto no-scrollbar gap-1">
+                {navLinks.map(link => (
+                    <Link 
+                        key={link.href} 
+                        href={link.href}
+                        className={`flex-1 min-w-[90px] sm:min-w-[120px] text-center px-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${pathname === link.href.split('?')[0] ? 'bg-brand-orange text-white shadow-lg' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
                     >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
-                    <button 
-                        onClick={handleRefresh}
-                        disabled={isPending}
-                        className={`p-2.5 rounded-xl border border-white/10 text-slate-400 hover:text-white transition-all bg-white/5 ${isPending ? 'bg-brand-orange/20 border-brand-orange/50' : ''}`}
-                        title="Sync Data"
-                    >
-                        <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin text-brand-orange' : ''}`} />
-                    </button>
-                    <Button variant="ghost" onClick={() => router.push('/api/auth/signout')} className="px-3 border-white/10 text-slate-400 h-10 rounded-xl hover:bg-red-500/10 hover:text-red-400">
-                        <LogOut className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
+                        {link.label}
+                    </Link>
+                ))}
+            </nav>
           </div>
         </div>
       </div>
 
-      <main className="py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <main className="py-6 sm:py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {children}
       </main>
     </div>

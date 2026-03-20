@@ -92,24 +92,24 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ isOpen, 
         </div>
         
         <div className="p-4 sm:p-6 space-y-6">
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <div className="bg-slate-950 p-6 rounded-2xl border border-white/10 space-y-4 shadow-inner">
             <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Bank Name</span>
-              <span className="text-white font-medium text-sm sm:text-base">{BANK_DETAILS.bankName}</span>
+              <span className="text-slate-400 text-xs uppercase font-black tracking-widest opacity-70">Bank Name</span>
+              <span className="text-white font-black text-sm sm:text-base uppercase">{BANK_DETAILS.bankName}</span>
             </div>
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t border-slate-900 pt-2 sm:border-0 sm:pt-0">
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Account Number</span>
-              <span className="text-green-400 font-mono font-bold tracking-wider text-lg sm:text-base">{BANK_DETAILS.accountNumber}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t border-white/5 pt-3">
+              <span className="text-slate-400 text-xs uppercase font-black tracking-widest opacity-70">Account Number</span>
+              <span className="text-brand-orange font-mono font-black tracking-[0.2em] text-xl sm:text-lg">{BANK_DETAILS.accountNumber}</span>
             </div>
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t border-slate-900 pt-2 sm:border-0 sm:pt-0">
-              <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Account Name</span>
-              <span className="text-white font-medium text-sm sm:text-base">{BANK_DETAILS.accountName}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-1 border-t border-white/5 pt-3">
+              <span className="text-slate-400 text-xs uppercase font-black tracking-widest opacity-70">Account Name</span>
+              <span className="text-white font-black text-sm sm:text-base uppercase">{BANK_DETAILS.accountName}</span>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Upload Receipt Proof</label>
-            <div className="border-2 border-dashed border-slate-800 hover:border-green-500/30 rounded-2xl p-4 sm:p-8 text-center transition-all bg-slate-950/50 group">
+          <div className="space-y-3">
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1 opacity-70">Upload Receipt Proof</label>
+            <div className="border-2 border-dashed border-white/10 hover:border-brand-orange/50 rounded-[2rem] p-4 sm:p-10 text-center transition-all bg-white/[0.02] group relative">
               {preview ? (
                 <div className="relative">
                   <img src={preview} alt="Receipt" className="max-h-40 sm:max-h-48 mx-auto rounded-lg shadow-2xl" />
@@ -130,7 +130,7 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ isOpen, 
                   />
                   <div className="flex flex-col items-center justify-center space-y-3 py-4 sm:py-0">
                     <div className="p-4 bg-slate-900 rounded-2xl group-hover:bg-slate-800 transition-colors ring-1 ring-white/5">
-                        <Upload className="h-6 w-6 text-slate-500 group-hover:text-green-500" />
+                        <Upload className="h-6 w-6 text-slate-500 group-hover:text-brand-orange" />
                     </div>
                     <div>
                         <p className="text-sm font-bold text-slate-300">Tap to select photo</p>

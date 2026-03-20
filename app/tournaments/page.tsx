@@ -19,7 +19,7 @@ export default async function TournamentsPage() {
       players: { select: { id: true } },
       organizer: { select: { name: true } }
     },
-    orderBy: { startDate: "asc" },
+    orderBy: { startDate: "desc" },
   });
 
   return (

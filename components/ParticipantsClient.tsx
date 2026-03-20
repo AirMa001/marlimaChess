@@ -49,8 +49,7 @@ export default function ParticipantsClient({ initialPlayers, initialMatches, tou
     if (b.rank) return 1;
     const scoreA = a.score || 0;
     const scoreB = b.score || 0;
-    if (scoreB !== scoreA) return scoreB - scoreA;
-    return b.rating - a.rating;
+    return scoreB - scoreA;
   });
   const filteredPlayers = sortedPlayers.filter(p => 
     p.fullName.toLowerCase().includes(search.toLowerCase()) || 

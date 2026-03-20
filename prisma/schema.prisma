@@ -96,6 +96,8 @@ model Player {
   registeredAt     DateTime @default(now())
   rank             Int?
   score            Float    @default(0)
+  buc1             Float    @default(0)
+  bucT             Float    @default(0)
 
   matchesAsWhite   Match[]  @relation("WhitePlayer")
   matchesAsBlack   Match[]  @relation("BlackPlayer")
